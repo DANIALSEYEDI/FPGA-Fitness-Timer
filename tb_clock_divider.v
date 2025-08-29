@@ -16,6 +16,8 @@ module tb_clock_divider;
 
     // Generate 40MHz clock (25ns period)
     always #12.5 clk_in = ~clk_in;
+    //the clock is generated in the FPGA itself and not from an external source
+    // , so it is not necessary to simulate it here
 
     initial begin
         // Reset pulse

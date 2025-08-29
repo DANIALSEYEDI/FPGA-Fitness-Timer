@@ -13,7 +13,7 @@ module clock_divider (
     reg [15:0] count_1kHz;    // needs up to 20k
     reg [15:0] count_2kHz;    // needs up to 10k
 
-    always @(posedge clk_in or posedge reset) begin
+    always @(posedge clk_in or posedge reset) begin //shouldn't reset always be negedge?
         if (reset) begin
             clk_1Hz   <= 0;
             clk_500Hz <= 0;
