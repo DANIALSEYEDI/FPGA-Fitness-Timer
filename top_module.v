@@ -1,106 +1,207 @@
+
+// ============================================================
+// TOP-LEVEL: Integrated system for Logic Lab Final Project
+// - Uses 40MHz clock
+// - Generates divided clocks (1Hz, 500Hz, 1kHz, 2kHz)
+// - Debounces push buttons
+// - Computes T (minutes) from 8-bit switches via combinational_circuit
+// - FSM controls flow; timer counts seconds at 1Hz
+// - Buzzer beeps when FSM asserts 'beep'
+// - 4-digit 7-seg shows remaining seconds (up to 9999)
+// ============================================================
+
 module top_module (
-    input clk,          // System clock (e.g., 50 MHz). This should be connected to FPGA pin p 184
-    input rst,          // Reset
-    input [15:0] bcd_data,   // 4-digit BCD input (4 digits * 4 bits)
-    //Each digit is 4 bits. For example, if you want to display "1234", bcd_data would be 16'b0001001000110100.
-    output buzzer,       // Buzzer output (connected to FPGA pin P13)
-    output [7:0] seg_data,   // 7-segment data output (should be connected to 74AC245SC)
-    output [3:0] digit_enable // Digit enable signals (should be connected to ULN2003L)
+    input        clk,              // 40 MHz clock (P184)
+    input        rst,              // Reset (active-high)
+    input  [8:0] switches,         // 9 switches (we use [7:0] for combinational_circuit), switches[0]=LSB
+    input        btn_start,        // Push button: Start
+    input        btn_skip,         // Push button: Skip
+    input        btn_reset,        // Push button: Reset
+    output       buzzer,           // Buzzer output (P13)
+    output [7:0] seg_data,         // 7-seg segments (a..g,dp) to 74AC245SC
+    output [3:0] digit_enable      // 7-seg common-cathode enables to ULN2003L (active-low)
 );
 
-  wire beep_enable;
-  wire buzzer_signal;
-  wire timer_timeout;
+    // ====================== CLOCK DIVIDER ======================
+    wire clk_1Hz, clk_500Hz, clk_1kHz, clk_2kHz;
+    clock_divider u_clkdiv (
+        .clk_in   (clk),
+        .reset    (rst),
+        .clk_1Hz  (clk_1Hz),
+        .clk_500Hz(clk_500Hz),
+        .clk_1kHz (clk_1kHz),
+        .clk_2kHz (clk_2kHz)
+    );
 
-  // Parameters for frequency and duration
-  localparam CLK_FREQ = 40000000; // 40 MHz clock = the clock frequency of the FPGA board
-  localparam BEEP_FREQ = 1000;    // 1 kHz beep (?)
-  //Experiment with different BEEP_FREQ values to find a sound that you like.
+    // ====================== DEBOUNCERS =========================
+    wire start_clean, skip_clean, reset_clean;
+    debouncer u_db_start (.clk(clk_1kHz), .rst(rst), .noisy_btn(btn_start), .clean_btn(start_clean));
+    debouncer u_db_skip  (.clk(clk_1kHz), .rst(rst), .noisy_btn(btn_skip),  .clean_btn(skip_clean));
+    debouncer u_db_reset (.clk(clk_1kHz), .rst(rst), .noisy_btn(btn_reset), .clean_btn(reset_clean));
 
-  localparam BEEP_DURATION = 1;   // 1 second
+    // ================== COMBINATIONAL CIRCUIT ==================
+    // Computes T (minutes) based on switches[7:0]
+    wire [7:0] T_minutes;
+    combinational_circuit u_comb (
+        .input_bits(switches[7:0]),
+        .T3        (T_minutes)
+    );
 
-    /*
-    the volume of the buzzer is determined by the voltage and current supplied by the FPGA pin.
-     You might need to add an external transistor driver if the FPGA pin can't supply enough current.
-      Be careful not to exceed the maximum current rating of the FPGA pin.
-    */
-  // Calculate clock cycles for frequency and duration
-  localparam FREQUENCY_SELECT = CLK_FREQ / BEEP_FREQ;
-  //The FREQUENCY_SELECT calculation ensures that the correct number of clock cycles are used for the desired frequency.
-  localparam DURATION_CYCLES = CLK_FREQ * BEEP_DURATION;
-  //not sure how these calculations are done yet.
+    // Convert minutes to seconds using shift/sub (60*T = (T<<6) - (T<<2))
+    wire [15:0] duration_seconds; // up to 60*255 = 15300 fits in 16 bits
+    assign duration_seconds = ({T_minutes,6'b0}) - ({T_minutes,2'b0});
 
-  // Timer instantiation
-  timer beep_timer (
-      .clk(clk),
-      .rst(rst),
-      .enable(1), // Always enabled
-      .duration(DURATION_CYCLES),
-      .timeout(timer_timeout)
-  );
+    // ======================== FSM ==============================
+    // Expected ports (based on your earlier file):
+    // workout_fsm(.clk, .start, .skip, .reset, .time_done, .T, .beep, .state_out, .start_timer, .show_time, .done)
+    wire        fsm_beep;
+    wire        fsm_start_timer;
+    wire        fsm_show_time;
+    wire        fsm_done;
+    wire  [1:0] fsm_state; // optional, if your FSM exposes state_out[1:0]
 
-  // Frequency generator instantiation
-  frequency_generator freq_gen (//for generating the sqauare wave for the buzzer
-      .clk(clk),
-      .enable(beep_enable),
-      .frequency_select(FREQUENCY_SELECT),
-      .buzzer_signal(buzzer_signal)
-  );
+    workout_fsm u_fsm (
+        .clk       (clk_1Hz),
+        .start     (start_clean),
+        .skip      (skip_clean),
+        .reset     (reset_clean),
+        .time_done (timer_timeout),
+        .T         (T_minutes),
+        .beep      (fsm_beep),
+        .state_out (fsm_state),
+        .start_timer(fsm_start_timer),
+        .show_time (fsm_show_time),
+        .done      (fsm_done)
+    );
 
-  //Assign beep_enable based on timer
-  assign beep_enable = ~timer_timeout;
+    // ======================= TIMER =============================
+    // Counts seconds at 1Hz up to 'duration_seconds' when enabled by FSM
+    wire timer_timeout;
+    timer u_timer (
+        .clk     (clk_1Hz),            // 1-second tick
+        .rst     (reset_clean),        // reset by button
+        .enable  (fsm_start_timer),    // start/pause controlled by FSM
+        .duration(duration_seconds),   // total seconds (<= 9999 recommended for 4-digit display)
+        .timeout (timer_timeout)
+    );
 
-  // Assign buzzer output to FPGA pin
-  assign buzzer = buzzer_signal;
-
-// This is the top-level module that connects everything together.
-//It instantiates the timer and frequency_generator modules.
-//It calculates the appropriate FREQUENCY_SELECT and DURATION_CYCLES based on your desired beep frequency and duration.
-//It connects the timer_timeout signal to the enable input of the frequency_generator, so the beep turns on and off according to the timer.
-//It assigns the buzzer_signal to the buzzer output, which should be connected to the FPGA pin P13 in your constraints file.
-
-  // Parameters for 7 segment display
-  localparam NUM_DIGITS = 4;
-  localparam DIGIT_SEL_BITS = 2; // log2(NUM_DIGITS)
-
-  // Internal signals for 7 segment display
-  reg [DIGIT_SEL_BITS - 1:0] digit_sel;
-  wire [3:0] current_digit_bcd;
-  wire [7:0] current_seg_data;
-
-  // Instantiate the BCD to 7-segment decoder
-  bcd2seven_seg bcd_decoder (
-      .a(current_digit_bcd),
-      .SEG_DATA(current_seg_data)
-  );
-
-  // Multiplexing logic for 7 segment display
-  always @(posedge clk) begin
-    if (rst) begin
-      digit_sel <= 0;
-    end else begin
-      digit_sel <= digit_sel + 1;
+    // For display: keep track of elapsed seconds while timer running.
+    // NOTE: this counter is only for display; timer is the authoritative time_done.
+    reg [15:0] elapsed_sec;
+    always @(posedge clk_1Hz or posedge reset_clean) begin
+        if (reset_clean) begin
+            elapsed_sec <= 0;
+        end else begin
+            if (!timer_timeout && fsm_start_timer)
+                elapsed_sec <= elapsed_sec + 1;
+            else if (!fsm_start_timer)
+                elapsed_sec <= 0;
+        end
     end
-  end
 
-  // Select the current digit's BCD value
-  assign current_digit_bcd = bcd_data[(digit_sel * 4) +: 4]; // Select 4 bits starting from digit_sel * 4
-  //current_digit_bcd is The 4-bit BCD value for the currently selected digit.
-  
-  // Assign the 7-segment data output
-  assign seg_data = current_seg_data;
-  //current_seg_data is The 7-segment data for the currently selected digit.
+    wire [15:0] remain_sec = (duration_seconds > elapsed_sec) ? (duration_seconds - elapsed_sec) : 16'd0;
 
-  // Digit enable logic (common cathode)
-  always @* begin
-    case (digit_sel)
-    //digit_sel is A 2-bit counter that selects which digit to display.
-      2'b00: digit_enable = 4'b1110; // Enable digit 0
-      2'b01: digit_enable = 4'b1101; // Enable digit 1
-      2'b10: digit_enable = 4'b1011; // Enable digit 2
-      2'b11: digit_enable = 4'b0111; // Enable digit 3
-      default: digit_enable = 4'b1111; // Disable all digits
-    endcase
-  end
+    // ======================= BUZZER ============================
+    // Use raw 40MHz clock for fine tone frequency; select ~1kHz tone
+    localparam integer CLK_FREQ   = 40000000;
+    localparam integer BEEP_FREQ  = 1000;
+    localparam integer FREQ_SEL   = CLK_FREQ / (2*BEEP_FREQ); // toggle every FREQ_SEL ticks
 
+    frequency_generator u_freq (
+        .clk             (clk),
+        .enable          (fsm_beep),
+        .frequency_select(FREQ_SEL[15:0]), // match your module width
+        .buzzer_signal   (buzzer)
+    );
+
+    // =================== 7-SEGMENT DISPLAY =====================
+    // Convert 'remain_sec' (0..9999) to 4 BCD digits. If exceed, it will saturate to 9999.
+    wire [3:0] d3, d2, d1, d0; // thousands, hundreds, tens, ones
+    bin_to_bcd_16 u_b2b (
+        .bin(remain_sec),
+        .thousands(d3),
+        .hundreds (d2),
+        .tens     (d1),
+        .ones     (d0)
+    );
+
+    // Multiplexing at ~500Hz for flicker-free display
+    reg [1:0] digit_sel;
+    always @(posedge clk_500Hz or posedge rst) begin
+        if (rst) digit_sel <= 2'd0;
+        else     digit_sel <= digit_sel + 2'd1;
+    end
+
+    reg [3:0] cur_bcd;
+    always @(*) begin
+        case (digit_sel)
+            2'd0: cur_bcd = d0;
+            2'd1: cur_bcd = d1;
+            2'd2: cur_bcd = d2;
+            2'd3: cur_bcd = d3;
+            default: cur_bcd = 4'd0;
+        endcase
+    end
+
+    wire [7:0] segs;
+    bcd2seven_seg u_bcd2seg (.a(cur_bcd), .SEG_DATA(segs));
+
+    // Common-cathode enables are active-low: only one digit enabled at a time
+    reg [3:0] an_r;
+    always @(*) begin
+        case (digit_sel)
+            2'd0: an_r = 4'b1110;
+            2'd1: an_r = 4'b1101;
+            2'd2: an_r = 4'b1011;
+            2'd3: an_r = 4'b0111;
+            default: an_r = 4'b1111;
+        endcase
+    end
+
+    assign digit_enable = an_r;
+    assign seg_data     = segs;
+
+endmodule
+
+// ============================================================
+// Helper: 16-bit binary -> 4-digit BCD (0..9999) using Double-Dabble
+// ============================================================
+module bin_to_bcd_16(
+    input  [15:0] bin,
+    output [3:0] thousands,
+    output [3:0] hundreds,
+    output [3:0] tens,
+    output [3:0] ones
+);
+    integer i;
+    reg [31:0] shift_reg; // [31:16]=unused, [15:0]=bin, [19:16]=thousands, [23:20]=hundreds, [27:24]=tens, [31:28]=ones (we'll map at end)
+    reg [3:0] th, hu, te, on;
+
+    always @(*) begin
+        // Initialize BCD nibbles and load binary
+        shift_reg = {16'd0, bin};
+        th = 4'd0; hu = 4'd0; te = 4'd0; on = 4'd0;
+
+        // Process 16 bits
+        for (i = 0; i < 16; i = i + 1) begin
+            // Add-3 step on each BCD digit if >= 5
+            if (shift_reg[19:16] >= 5) shift_reg[19:16] = shift_reg[19:16] + 3;
+            if (shift_reg[23:20] >= 5) shift_reg[23:20] = shift_reg[23:20] + 3;
+            if (shift_reg[27:24] >= 5) shift_reg[27:24] = shift_reg[27:24] + 3;
+            if (shift_reg[31:28] >= 5) shift_reg[31:28] = shift_reg[31:28] + 3;
+            // Shift left by 1
+            shift_reg = shift_reg << 1;
+        end
+
+        // Extract final BCD digits
+        on = shift_reg[31:28];
+        te = shift_reg[27:24];
+        hu = shift_reg[23:20];
+        th = shift_reg[19:16];
+    end
+
+    assign thousands = th;
+    assign hundreds  = hu;
+    assign tens      = te;
+    assign ones      = on;
 endmodule
