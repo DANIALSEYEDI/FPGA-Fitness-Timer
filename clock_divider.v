@@ -1,5 +1,5 @@
 module clock_divider (
-    input  wire clk_in,     // 40MHz input clock
+    input  wire clk_in,     // 40MHz input clock from FPGA 
     input  wire reset,      // async reset
     output reg clk_1Hz,     // 1Hz clock for timer
     output reg clk_500Hz,   // 500Hz for 7-seg
