@@ -1,7 +1,15 @@
+// ============================================================
+//The FPGA runs on a very fast 40MHz clock. This module divides that high frequency down to more useful frequencies
+// needed by other parts of the system:
+//1Hz: For the main timer to count seconds.
+//500Hz: For refreshing the 7-segment display without flickering.
+//2kHz: For driving the buzzer to make a sound.
+// ============================================================
+
 module clock_divider (
     input  wire clk_in,     // 40MHz input clock from FPGA 
     input  wire reset,      // async reset
-    output reg clk_1Hz,     // 1Hz clock for timer
+    output reg clk_1Hz,     // 1Hz clock for timer that counts seconds
     output reg clk_500Hz,   // 500Hz for 7-seg
     output reg clk_1kHz,    // 1kHz optional
     output reg clk_2kHz     // 2kHz for buzzer

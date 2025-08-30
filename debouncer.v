@@ -7,7 +7,7 @@ module debouncer (
 
     reg d1, d2, d3;
 
-   
+   //according to what Mahan said , shouldn't this be negedge clk ?
     always @(posedge clk or posedge rst) begin
         if (rst) begin
             d1 <= 0;
