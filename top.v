@@ -22,12 +22,12 @@ module top_module (
     input  btn_reset,        // Push button: Reset
     output  buzzer,
     output [7:0] seg_data,         // 7-seg segments
-    output [3:0] digit_enable,     // 7-seg common-cathode enables (active-low)
+    output [3:0] digit_enable     // 7-seg common-cathode enables (active-low)
     // ===== LCD outputs (NEW) =====
-    output RS,
-    output RW,
-    output E,
-    output [7:4] lcd_data
+    //output RS,
+    //output RW,
+    //output E,
+    //output [7:4] lcd_data
 );
     // ====================== CLOCK DIVIDER ======================
     wire clk_1Hz, clk_500Hz, clk_1kHz, clk_2kHz;
@@ -129,14 +129,20 @@ bin_to_bcd_16 u_b2b (
     .thousands(d3), .hundreds(d2), .tens(d1), .ones(d0)
 );
 
+reg [4:0] digit_sel;
+always@(posedge clk_500Hz or posedge rst) begin
+	if(rst) digit_sel <= 3'b000;
+	else digit_sel <= digit_sel + 1;
+end
+
 reg [3:0] cur_bcd;
 always @(*) begin
     case (digit_sel)
-        2'd0: cur_bcd = d0;
-        2'd1: cur_bcd = d1;
-        2'd2: cur_bcd = d2;
-        2'd3: cur_bcd = d3;
-        default: cur_bcd = 4'd0;
+        3'b000: cur_bcd = d0;
+        3'b001: cur_bcd = d1;
+        3'b010: cur_bcd = d2;
+        3'b011: cur_bcd = d3;
+        default: cur_bcd = d0;
     endcase
 end
 
@@ -148,14 +154,15 @@ bcd2seven_seg u_bcd2seg (
 
 assign seg_data = segs;
 
-
+/*
     reg [1:0] digit_sel;
     always @(posedge clk_500Hz or posedge rst) begin
         if (rst) digit_sel <= 2'd0;
         else     digit_sel <= digit_sel + 2'd1;
     end
-
+	*/
     //reg [3:0] cur_bcd;
+	 /*
     always @(*) begin
         case (digit_sel)
             2'd0: cur_bcd = d0; 2'd1: cur_bcd = d1;
@@ -163,7 +170,7 @@ assign seg_data = segs;
             default: cur_bcd = 4'd0;
         endcase
     end
-
+*/
     //wire [7:0] segs;
     //bcd2seven_seg u_bcd2seg (.a(cur_bcd), .SEG_DATA(segs));
 
@@ -181,7 +188,7 @@ assign seg_data = segs;
 
     // ======================= LCD DISPLAY (NEW) =================
     // Exercise index rolls 0..9; increments when entering WORKOUT state
-    reg [3:0] exercise_id;
+    /*reg [3:0] exercise_id;
     always @(posedge clk_1Hz or posedge reset_clean) begin
         if (reset_clean) begin
             exercise_id <= 4'd0;
@@ -202,6 +209,6 @@ assign seg_data = segs;
         .RW(RW),
         .E(E),
         .data(lcd_data)
-    );
+    );*/
 
 endmodule
