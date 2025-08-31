@@ -14,19 +14,19 @@
 // top_module.v (with LCD integration)
 
 module top_module (
-    input        clk,              // 40 MHz clock
-    input        rst,              // Reset (active-high)
-    input  [8:0] switches,
-    input        btn_start,        // Push button: Start
-    input        btn_skip,         // Push button: Skip
-    input        btn_reset,        // Push button: Reset
-    output       buzzer,
+    input clk,              // 40 MHz clock
+    input rst,              // Reset (active-high)
+    input [7:0] switches,
+    input  btn_start,        // Push button: Start
+    input  btn_skip,         // Push button: Skip
+    input  btn_reset,        // Push button: Reset
+    output  buzzer,
     output [7:0] seg_data,         // 7-seg segments
     output [3:0] digit_enable,     // 7-seg common-cathode enables (active-low)
     // ===== LCD outputs (NEW) =====
-    output       RS,
-    output       RW,
-    output       E,
+    output RS,
+    output RW,
+    output E,
     output [7:4] lcd_data
 );
     // ====================== CLOCK DIVIDER ======================
@@ -45,9 +45,9 @@ module top_module (
     combinational_circuit u_comb ( .input_bits(switches[7:0]), .T3(T_minutes) );
 
     // ======================== FSM ==============================
-    wire        fsm_start_timer, fsm_show_time, fsm_done;
-    wire        fsm_beep_cycle, fsm_beep_finish; // may need FSM update to expose these
-    wire  [1:0] fsm_state;
+    wire fsm_start_timer, fsm_show_time, fsm_done;
+    wire fsm_beep_cycle, fsm_beep_finish; // may need FSM update to expose these
+    wire [1:0] fsm_state;
 
     workout_fsm u_fsm (
         .clk           (clk_1Hz),
@@ -64,7 +64,7 @@ module top_module (
         .done          (fsm_done)
     );
     // ======================= TIMER =============================
-    wire timer_timeout;
+    //wire timer_timeout;
     // When in WORKOUT (01), duration is 45s. In REST (10), 15s.
     // Timer times out after (duration+1) ticks, so we use N-1.
     wire [15:0] timer_duration;
@@ -123,11 +123,31 @@ module top_module (
         .buzzer_signal   (buzzer)
     );
     // =================== 7-SEGMENT DISPLAY =====================
-    wire [3:0] d3, d2, d1, d0;
-    bcd2seven_seg u_b2b (
-        .bin      (time_display_reg), // Display the new corrected time
-        .thousands(d3), .hundreds(d2), .tens(d1), .ones(d0)
-    );
+wire [3:0] d3, d2, d1, d0;
+bin_to_bcd_16 u_b2b (
+    .bin(time_display_reg),
+    .thousands(d3), .hundreds(d2), .tens(d1), .ones(d0)
+);
+
+reg [3:0] cur_bcd;
+always @(*) begin
+    case (digit_sel)
+        2'd0: cur_bcd = d0;
+        2'd1: cur_bcd = d1;
+        2'd2: cur_bcd = d2;
+        2'd3: cur_bcd = d3;
+        default: cur_bcd = 4'd0;
+    endcase
+end
+
+wire [7:0] segs;
+bcd2seven_seg u_bcd2seg (
+    .a(cur_bcd),
+    .SEG_DATA(segs)
+);
+
+assign seg_data = segs;
+
 
     reg [1:0] digit_sel;
     always @(posedge clk_500Hz or posedge rst) begin
@@ -135,7 +155,7 @@ module top_module (
         else     digit_sel <= digit_sel + 2'd1;
     end
 
-    reg [3:0] cur_bcd;
+    //reg [3:0] cur_bcd;
     always @(*) begin
         case (digit_sel)
             2'd0: cur_bcd = d0; 2'd1: cur_bcd = d1;
@@ -144,8 +164,8 @@ module top_module (
         endcase
     end
 
-    wire [7:0] segs;
-    bcd2seven_seg u_bcd2seg (.a(cur_bcd), .SEG_DATA(segs));
+    //wire [7:0] segs;
+    //bcd2seven_seg u_bcd2seg (.a(cur_bcd), .SEG_DATA(segs));
 
     reg [3:0] an_r;
     always @(*) begin

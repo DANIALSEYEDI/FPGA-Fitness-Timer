@@ -41,7 +41,7 @@ module tb_top_module;
 
         // Init
         rst = 1;
-        switches = 9'b000001010; // e.g., T=5 (arbitrary input for minutes)
+        switches = 8'b00001010; // e.g., T=5 (arbitrary input for minutes)
         btn_start = 0;
         btn_skip  = 0;
         btn_reset = 0;
