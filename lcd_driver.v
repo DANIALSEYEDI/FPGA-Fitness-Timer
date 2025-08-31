@@ -7,17 +7,24 @@ module lcd_driver (
     output reg [7:4] data // 4-bit data bus (D4-D7)
 );
 
-    // ================== STATE ENCODING ==================
-    parameter INIT  = 3'b000;
-    parameter IDLE  = 3'b001;
-    parameter WRITE = 3'b010;
-    parameter HOLD  = 3'b011;
+    // FSM states
+	 /*
+    typedef enum reg [2:0] {
+        INIT, IDLE, WRITE, HOLD
+    } state_t;
 
-    reg [2:0] state, next_state;
+    state_t state, next_state;
+	 */
+	 parameter INIT = 2'b00;
+	 parameter IDLE = 2'b01;
+	 parameter WRITE = 2'b10;
+	 parameter HOLD = 2'b11;
+	 
+	 reg [1:0] state, next_state;
 
-    // ================== CLOCK DIVIDER ==================
-    reg [15:0] clk_div;   
-    wire slow_clk = clk_div[15]; // ~610 Hz from 40MHz
+
+    reg [15:0] clk_div;   // slow down 40MHz clock
+    wire slow_clk = clk_div[15]; // ~610Hz
 
     always @(posedge clk or posedge rst) begin
         if (rst)
@@ -26,36 +33,27 @@ module lcd_driver (
             clk_div <= clk_div + 1;
     end
 
-    // ================== FSM STATE REGISTER ==================
+    // FSM
     always @(posedge slow_clk or posedge rst) begin
         if (rst) begin
             state <= INIT;
-            RS    <= 0;
-            RW    <= 0;
-            E     <= 0;
-            data  <= 4'b0000;
+            RS <= 0;
+            RW <= 0;
+            E  <= 0;
+            data <= 4'b0000;
         end else begin
             state <= next_state;
         end
     end
 
-    // ================== FSM NEXT-STATE + OUTPUT LOGIC ==================
     always @(*) begin
-        // default values
-        RS = 0; 
-        RW = 0; 
-        E  = 0; 
-        data = 4'b0000;
-        next_state = IDLE;
-
         case (state)
             INIT: begin
-                // Send clear display command
+                // simple init command: clear display
                 RS = 0; RW = 0; E = 1;
-                data = 4'b0001;  
+                data = 4'b0001; // clear command
                 next_state = IDLE;
             end
-
             IDLE: begin
                 E = 0;
                 if (write_en)
@@ -63,20 +61,18 @@ module lcd_driver (
                 else
                     next_state = IDLE;
             end
-
             WRITE: begin
                 RS = 1; RW = 0; E = 1;
-                data = data_in[7:4]; // upper nibble
+                data = data_in[7:4]; // send upper nibble
                 next_state = HOLD;
             end
-
             HOLD: begin
                 RS = 1; RW = 0; E = 0;
-                data = data_in[3:0]; // lower nibble
+                data = data_in[3:0]; // send lower nibble
                 next_state = IDLE;
             end
+            default: next_state = IDLE;
         endcase
     end
 
 endmodule
-

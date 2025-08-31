@@ -3,7 +3,7 @@ module bcd2seven_seg (
     output reg [7:0] SEG_DATA // 7-segment output (a-g, dp)
 );
 
-  always_comb begin
+  always@(*) begin
     case (a)
       4'b0000: SEG_DATA = 8'b11111100; // 0
       4'b0001: SEG_DATA = 8'b01100000; // 1

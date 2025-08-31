@@ -1,34 +1,29 @@
-
 module workout_fsm(
-    //TODO : it has been clearly said in the project description that the FSM should have 2 input clock signals
     input clk,          // 1Hz clock
     input start, 
     input skip,
     input reset,
-    //these three push buttons should be connected to the relevant pins on the FPGA 
-    input time_done, //this input comes from the timer and becomes one when the 1 minute time of a workout and rest is finished
-    input [7:0] T,//the input from the combinational circuit
+    input time_done,    // from timer
+    input [7:0] T,      // from combinational circuit
 
-    output reg beep_cycle_end, // Beep for end of rest period
-    output reg beep_finish,    // Beep for final workout completion
+    output reg beep_cycle_end, // Beep for end of rest
+    output reg beep_finish,    // Beep for workout end
     output reg [1:0] state_out,
     output reg start_timer,
     output reg show_time,
-    //these two should mpst probably go to the 7-segments
     output reg done
 );
 
-    typedef enum reg [1:0] {
-        IDLE    = 2'b00,
-        WORKOUT = 2'b01,
-        REST    = 2'b10,
-        FINISH  = 2'b11
-    } state_t;
+    // FSM states (no typedef in pure Verilog)
+    localparam IDLE    = 2'b00;
+    localparam WORKOUT = 2'b01;
+    localparam REST    = 2'b10;
+    localparam FINISH  = 2'b11;
 
-    state_t current_state, next_state;
-    reg [7:0] count; // this holds the count of the excersices remaining
+    reg [1:0] current_state, next_state;
+    reg [7:0] count; // remaining exercises
 
-    // Combinational logic for next state
+    // Next state logic
     always @(*) begin
         case (current_state)
             IDLE: begin
@@ -63,42 +58,41 @@ module workout_fsm(
         endcase
     end
 
-    // Sequential logic for state and counter updates
+    // Sequential state + counter update
     always @(posedge clk or posedge reset) begin
         if (reset) begin
             current_state <= IDLE;
             count <= T;
         end else begin
             current_state <= next_state;
-            // Decrement workout count after completing a WORKOUT state
             if (current_state == WORKOUT && (skip || time_done) && count > 0)
                 count <= count - 1;
         end
     end
 
-    // Combinational logic for outputs
+    // Output logic
     always @(*) begin
-        // Default assignments
+        // defaults
         start_timer = 0;
-        show_time = 0;
-        done = 0;
-        beep_cycle_end = 0; 
-        beep_finish = 0;    
-        state_out = current_state;
+        show_time   = 0;
+        done        = 0;
+        beep_cycle_end = 0;
+        beep_finish    = 0;
+        state_out      = current_state;
 
         case (current_state)
             WORKOUT: begin
                 start_timer = 1;
-                show_time = 1;
+                show_time   = 1;
             end
             REST: begin
                 start_timer = 1;
-                show_time = 1;
+                show_time   = 1;
                 if (time_done)
                     beep_cycle_end = 1;
             end
             FINISH: begin
-                done = 1;
+                done        = 1;
                 beep_finish = 1;
             end
         endcase
