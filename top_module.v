@@ -12,15 +12,15 @@
 // ============================================================
 
 module top_module (
-    input        clk,              // 40 MHz clock
-    input        rst,              // Reset (active-high)
-    input  [8:0] switches,
-    input        btn_start,        
-    input        btn_skip,        
-    input        btn_reset,        
-    output       buzzer,            // Buzzer output : should be set to P13
-    output [7:0] seg_data,         // 7-seg segments
-    output [3:0] digit_enable      // 7-seg common-cathode enables (active-low)
+    input clk,// 40 MHz clock
+    input rst,// Reset (active-high)
+    input [7:0] switches,//it was initially [8:0]
+    input btn_start,        
+    input btn_skip,        
+    input btn_reset,        
+    output buzzer,// Buzzer output : should be set to P13
+    output [7:0] seg_data,// 7-seg segments
+    output [3:0] digit_enable// 7-seg common-cathode enables (active-low)
 );
     // ====================== CLOCK DIVIDER ======================
     wire clk_1Hz, clk_500Hz, clk_1kHz, clk_2kHz;
@@ -104,7 +104,7 @@ module top_module (
 
     // ======================= BUZZER ============================
     //different frequencies for beeps has been implemented for beeps
-    localparam integer CLK_FREQ          = 40000000;
+    localparam integer CLK_FREQ = 40000000;
     localparam integer BEEP_FREQ_NORMAL  = 1000; // 1kHz for cycle end
     localparam integer BEEP_FREQ_FINISH  = 500;  // 500Hz for workout finish
     localparam integer FREQ_SEL_NORMAL   = CLK_FREQ / (2 * BEEP_FREQ_NORMAL);
@@ -138,8 +138,10 @@ module top_module (
     reg [3:0] cur_bcd;//what is this for?
     always @(*) begin
         case (digit_sel)
-            2'd0: cur_bcd = d0; 2'd1: cur_bcd = d1;
-            2'd2: cur_bcd = d2; 2'd3: cur_bcd = d3;
+            2'd0: cur_bcd = d0;
+            2'd1: cur_bcd = d1;
+            2'd2: cur_bcd = d2; 
+            2'd3: cur_bcd = d3;
             default: cur_bcd = 4'd0;
         endcase
     end
