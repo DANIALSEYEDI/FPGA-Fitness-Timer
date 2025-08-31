@@ -1,19 +1,20 @@
-// fsm.v (Corrected)
 
 module workout_fsm(
+    //TODO : it has been clearly said in the project description that the FSM should have 2 input clock signals
     input clk,          // 1Hz clock
-    input start,
+    input start, 
     input skip,
     input reset,
-    input time_done,
-    input [7:0] T,
+    //these three push buttons should be connected to the relevant pins on the FPGA 
+    input time_done, //this input comes from the timer and becomes one when the 1 minute time of a workout and rest is finished
+    input [7:0] T,//the input from the combinational circuit
 
-    // MODIFIED: Replaced single 'beep' with two distinct signals
     output reg beep_cycle_end, // Beep for end of rest period
     output reg beep_finish,    // Beep for final workout completion
     output reg [1:0] state_out,
     output reg start_timer,
     output reg show_time,
+    //these two should mpst probably go to the 7-segments
     output reg done
 );
 
@@ -25,9 +26,9 @@ module workout_fsm(
     } state_t;
 
     state_t current_state, next_state;
-    reg [7:0] count;
+    reg [7:0] count; // this holds the count of the excersices remaining
 
-    // Combinational logic for next state (No changes here)
+    // Combinational logic for next state
     always @(*) begin
         case (current_state)
             IDLE: begin
@@ -62,7 +63,7 @@ module workout_fsm(
         endcase
     end
 
-    // Sequential logic for state and counter updates (No changes here)
+    // Sequential logic for state and counter updates
     always @(posedge clk or posedge reset) begin
         if (reset) begin
             current_state <= IDLE;
@@ -75,14 +76,14 @@ module workout_fsm(
         end
     end
 
-    // Combinational logic for outputs (MODIFIED)
+    // Combinational logic for outputs
     always @(*) begin
         // Default assignments
         start_timer = 0;
         show_time = 0;
         done = 0;
-        beep_cycle_end = 0; // Initialize new output
-        beep_finish = 0;    // Initialize new output
+        beep_cycle_end = 0; 
+        beep_finish = 0;    
         state_out = current_state;
 
         case (current_state)
@@ -93,13 +94,11 @@ module workout_fsm(
             REST: begin
                 start_timer = 1;
                 show_time = 1;
-                // FIXED: Assert beep when rest time is done
                 if (time_done)
                     beep_cycle_end = 1;
             end
             FINISH: begin
                 done = 1;
-                // FIXED: Use the dedicated finish beep signal
                 beep_finish = 1;
             end
         endcase

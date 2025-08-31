@@ -17,10 +17,26 @@ module clock_divider (
 
     // Counters
     reg [24:0] count_1Hz;     // needs up to 20M
+    /*
+    This register is used to count up to approximately 20 million (20,000,000) clock cycles
+     of the input clock (clk_in) to generate the 1 Hz clock signal.
+      Because the input clock is 40 MHz, it takes 20,000,000 cycles to represent 1 second.
+      1 Hz: To generate a 1 Hz clock from a 40 MHz clock,
+       you need to divide the frequency by 40,000,000.
+        Since the clock is toggled (high for half the period, low for the other half),
+         the counter only needs to count to 40,000,000 / 2 = 20,000,000.
+      the same also applies to the other registers below.
+      The code subtracts 1 from these values (>= 20000000-1, etc.) in the always block.
+       This is a common practice in Verilog to ensure the correct timing of the output clock signals.
+    */
     reg [15:0] count_500Hz;   // needs up to 40k
     reg [15:0] count_1kHz;    // needs up to 20k
     reg [15:0] count_2kHz;    // needs up to 10k
-
+    /*
+    These are comments explaining the maximum count value each register needs to reach
+     to generate the desired clock frequency.
+     The "k" stands for thousand, and "M" stands for million.
+    */
     always @(posedge clk_in or posedge reset) begin //shouldn't reset always be negedge?
         if (reset) begin
             clk_1Hz   <= 0;

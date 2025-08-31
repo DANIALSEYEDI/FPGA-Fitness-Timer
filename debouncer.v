@@ -2,6 +2,7 @@ module debouncer (
     input  clk,        
     input  rst,        
     input  noisy_btn, 
+    //this module will be instantiated 3 times for 3 different buttons
     output clean_btn   
 );
 
@@ -13,6 +14,7 @@ module debouncer (
             d1 <= 0;
             d2 <= 0;
             d3 <= 0;
+            //again according to Mahan , shouldn't these be set to 1 initially ?
         end else begin
             d1 <= noisy_btn;
             d2 <= d1;

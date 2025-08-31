@@ -6,20 +6,19 @@
 // - Debounces push buttons
 // - Computes T (minutes) from 8-bit switches via combinational_circuit
 // - FSM controls flow; timer counts seconds at 1Hz(counts one each second)
-// - Buzzer beeps when FSM asserts 'beep'
+// - Buzzer beeps at end of each cycle and at finish
+// - 7-seg display multiplexed at 500Hz
 // - 4-digit 7-seg shows remaining activities and remaining time of each activity (up to 9999)
 // ============================================================
-
-// top_module.v (Corrected)
 
 module top_module (
     input        clk,              // 40 MHz clock
     input        rst,              // Reset (active-high)
     input  [8:0] switches,
-    input        btn_start,        // Push button: Start
-    input        btn_skip,         // Push button: Skip
-    input        btn_reset,        // Push button: Reset
-    output       buzzer,
+    input        btn_start,        
+    input        btn_skip,        
+    input        btn_reset,        
+    output       buzzer,            // Buzzer output : should be set to P13
     output [7:0] seg_data,         // 7-seg segments
     output [3:0] digit_enable      // 7-seg common-cathode enables (active-low)
 );
@@ -37,45 +36,46 @@ module top_module (
     // ================== COMBINATIONAL CIRCUIT ==================
     wire [7:0] T_minutes;
     combinational_circuit u_comb ( .input_bits(switches[7:0]), .T3(T_minutes) );
-
+    //the combinational circuit uses the 8 bit input to calculate the number of minutes(T)
     // ======================== FSM ==============================
-    wire        fsm_start_timer, fsm_show_time, fsm_done;
-    wire        fsm_beep_cycle, fsm_beep_finish; // Renamed to reflect new FSM outputs
-    wire  [1:0] fsm_state;
+    wire fsm_start_timer, fsm_show_time, fsm_done;
+    wire fsm_beep_cycle, fsm_beep_finish;
+    wire  [1:0] fsm_state; //the current state of the FSM
 
     workout_fsm u_fsm (
-        .clk           (clk_1Hz),
-        .start         (start_clean),
-        .skip          (skip_clean),
-        .reset         (reset_clean),
-        .time_done     (timer_timeout),
-        .T             (T_minutes),
-        .beep_cycle_end(fsm_beep_cycle), // Connect to new FSM output
-        .beep_finish   (fsm_beep_finish),  // Connect to new FSM output
-        .state_out     (fsm_state),
-        .start_timer   (fsm_start_timer),
-        .show_time     (fsm_show_time),
-        .done          (fsm_done)
+        .clk(clk_1Hz),
+        .start(start_clean),
+        .skip(skip_clean),
+        .reset(reset_clean),
+        .time_done(timer_timeout),
+        .T(T_minutes),
+        .beep_cycle_end(fsm_beep_cycle), 
+        .beep_finish(fsm_beep_finish), 
+        .state_out(fsm_state),
+        .start_timer(fsm_start_timer),
+        .show_time(fsm_show_time),
+        .done(fsm_done)
     );
     // ======================= TIMER =============================
-    wire timer_timeout;
-    // FIXED FLAW 1: Timer duration is now selected based on FSM state
+    wire timer_timeout;//??? : what does this do?
+    //Timer duration is selected based on FSM state
     wire [15:0] timer_duration;
     // When in WORKOUT (01), duration is 45s. In REST (10), 15s.
     // Timer times out after (duration+1) ticks, so we use N-1.
     assign timer_duration = (fsm_state == 2'b01) ? 16'd44 :
                             (fsm_state == 2'b10) ? 16'd14 : 16'd0;
+    //convert the assignment for timer_duration to if-else format
 
     timer u_timer (
         .clk     (clk_1Hz),
         .rst     (reset_clean),
         .enable  (fsm_start_timer),
-        .duration(timer_duration), // Use the dynamically selected duration
-        .timeout (timer_timeout)
+        .duration(timer_duration), // Using the dynamically selected duration
+        .timeout (timer_timeout)//??? : what does this do?
     );
 
     // ======================= DISPLAY COUNTER ===================
-    // FIXED FLAW 2: This counter now correctly counts down from 45 or 15
+    // The 7-segment counter counts down from 45 or 15
     reg [15:0] time_display_reg;
     reg [1:0]  fsm_state_prev; // Used to detect state changes
 
@@ -103,7 +103,7 @@ module top_module (
     end
 
     // ======================= BUZZER ============================
-    // FIXED FLAW 3: Implement different frequencies for beeps
+    //different frequencies for beeps has been implemented for beeps
     localparam integer CLK_FREQ          = 40000000;
     localparam integer BEEP_FREQ_NORMAL  = 1000; // 1kHz for cycle end
     localparam integer BEEP_FREQ_FINISH  = 500;  // 500Hz for workout finish
@@ -116,24 +116,26 @@ module top_module (
     frequency_generator u_freq (
         .clk             (clk),
         .enable          (beep_enable),
-        .frequency_select(beep_freq_select),
+        .frequency_select(beep_freq_select),// Selects frequency based on FSM signal
+        // If fsm_beep_finish is high, use finish freq; else normal freq
         .buzzer_signal   (buzzer)
     );
-    // =================== 7-SEGMENT DISPLAY =====================
+    // (??????????)=================== 7-SEGMENT DISPLAY =====================(?????????????)
     wire [3:0] d3, d2, d1, d0;
     bin_to_bcd_16 u_b2b (
-        .bin      (time_display_reg), // Display the new corrected time
+        .bin(time_display_reg), // Display the new corrected time
         .thousands(d3), .hundreds(d2), .tens(d1), .ones(d0)
     );
 
-    // Multiplexing logic remains the same
+    // Multiplexing logic
     reg [1:0] digit_sel;
     always @(posedge clk_500Hz or posedge rst) begin
         if (rst) digit_sel <= 2'd0;
         else     digit_sel <= digit_sel + 1;
     end
+    //what exactly happens in the multiplexing logic in the always block above?
 
-    reg [3:0] cur_bcd;
+    reg [3:0] cur_bcd;//what is this for?
     always @(*) begin
         case (digit_sel)
             2'd0: cur_bcd = d0; 2'd1: cur_bcd = d1;
@@ -155,6 +157,8 @@ module top_module (
     end
 
     assign digit_enable = an_r;
-    assign seg_data     = segs;
+    assign seg_data = segs;
+    // digit_enable should be connected to the anode pins of the 7-seg display
+    //we should go over the logic implemented for the 7-seg display(?????)
 
 endmodule
