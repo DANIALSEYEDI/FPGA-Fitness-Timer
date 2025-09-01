@@ -420,7 +420,6 @@ module workout_fsm(
             IDLE: begin
                 if (start)
                     next_state = WORKOUT;
-                    fsm_start_timer = 1;
                 else
                     next_state = IDLE;
             end
@@ -432,24 +431,38 @@ module workout_fsm(
                     next_state = (count > 1) ? REST : FINISH;
                 else
                     next_state = WORKOUT;
-            end
-            REST: begin
-                timer_duration <= 16'd15;
-                counting_done <= 0;
-                timer u_timer (
+                    //timer instantiation
+                    fsm_start_timer = 1;
+                    timer_duration = 16'd45;
+                    counting_done = 0;
+                    timer u_timer (
                     .clk(clk_1Hz),
                     .rst(reset_clean),
                     .enable(fsm_start_timer),
                     .duration(timer_duration),
                     .timeout(counting_done)
-                );
+                    );
+
+            end
+            REST: begin
                 if (reset)
                     next_state = IDLE;
                     fsm_start_timer = 0;
-                else if (time_done)
+                else if (counting_done)
                     next_state = WORKOUT;
                 else
                     next_state = REST;
+                    //timer instantiation
+                    fsm_start_timer = 1;
+                    timer_duration = 16'd15;
+                    counting_done = 0;
+                    timer u_timer (
+                    .clk(clk_1Hz),
+                    .rst(reset_clean),
+                    .enable(fsm_start_timer),
+                    .duration(timer_duration),
+                    .timeout(counting_done)
+                    );
             end
             FINISH: begin
                 if (reset)
@@ -457,6 +470,7 @@ module workout_fsm(
                     fsm_start_timer = 0;
                 else
                     next_state = FINISH;
+                    finished = 1;
             end
             default: next_state = IDLE;
         endcase
@@ -469,23 +483,24 @@ module workout_fsm(
             count <= T;
         end else begin
             current_state <= next_state;
-            if (current_state == WORKOUT && skip && count > 0)
+            state_out = current_state; //should this be here? and is this even neccessary?
+            if (current_state == WORKOUT && (skip || counting_done) && count > 0)
                 count <= count - 1;
         end
     end
 
-    // Output logic
-    always @(*) begin
-        // defaults
-        finished = 0;
-        state_out = current_state;
+    // // Output logic
+    // always @(*) begin
+    //     // defaults
+    //     finished = 0;
+    //     state_out = current_state;
 
-        case (current_state)
-            FINISH: begin
-                finished = 1;
-            end
-        endcase
-    end
+    //     case (current_state)
+    //         FINISH: begin
+    //             finished = 1;
+    //         end
+    //     endcase
+    // end
 endmodule
 
 module timer (
