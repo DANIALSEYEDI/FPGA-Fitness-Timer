@@ -1,13 +1,15 @@
-
 //`timescale 1ns/1ps
 
 module top_module (
-    input clk,        // 40 MHz
-    input rst,        // async reset (active-high)
-    input [7:0] switches,   // input switches
+    input        clk,        // 40 MHz
+    input        rst,        // async reset (active-high)
+    input  [7:0] switches,   // input switches
+    input        btn_skip,   //push button input for workout skip
+    input        btn_reset, //push button input for reset
     output [4:0] SEG_SEL, 
     output reg [7:0]SEG_DATA; 
-    );
+    
+);
 
     // ---------- clock divider ----------
     wire clk_1Hz, clk_500Hz, clk_1kHz, clk_2kHz;
@@ -20,6 +22,43 @@ module top_module (
     // ---------- combinational circuit ----------
     wire [7:0] T_minutes;
     combinational_circuit u_comb (.input_bits(switches), .T3(T_minutes));
+
+    // ---------- debouncers ----------
+    wire start_clean,skip_clean, reset_clean;
+    debouncer u_db_start  (.clk(clk_1kHz), .rst(rst), .noisy_btn(btn_start),  .clean_btn(start_clean));
+    debouncer u_db_skip  (.clk(clk_1kHz), .rst(rst), .noisy_btn(btn_skip),  .clean_btn(skip_clean));
+    debouncer u_db_reset (.clk(clk_1kHz), .rst(rst), .noisy_btn(btn_reset), .clean_btn(reset_clean));
+
+    // ---------- FSM ----------
+    wire fsm_finished;
+    wire [1:0] fsm_state;
+    wire [7:0] fsm_count;
+
+    workout_fsm u_fsm (
+        .clk(clk_1Hz),//why exactly 1Hz?
+        .start(start_clean),
+        .skip(skip_clean),
+        .reset(reset_clean),
+        .T(T_minutes),
+        .state_out(fsm_state),
+        .finished(fsm_finished),
+        .count(fsm_count)
+    );
+
+      // ---------- Timer ----------
+    wire timer_timeout;
+    wire [15:0] timer_duration = (fsm_state==2'b01) ? 16'd44 :
+                                 (fsm_state==2'b10) ? 16'd14 : 16'd0;
+
+    timer u_timer (
+        .clk(clk_1Hz),
+        .rst(reset_clean),
+        .enable(fsm_start_timer),
+        .duration(timer_duration),
+        .timeout(timer_timeout)
+    );
+        //should I put the code for the 7-segments in a 
+        //always@(fsm_count) block ?
 
     // ---------- Binary to BCD conversion ----------
     wire [3:0] hundreds;
@@ -39,7 +78,8 @@ module top_module (
     wire [3:0] bcd_digit;
     
     // Extract BCD digits
-    
+    wire [3:0] tens = bcd_out[7:4];
+    wire [3:0] ones = bcd_out[3:0];
 
     refreshCounter refresh_counter_inst (
         .refresh_clock(clk_500Hz),
@@ -323,4 +363,155 @@ module bin2bcd (
             ones = temp_ones;
         end
     end
+endmodule
+
+module debouncer (
+    input  clk,        
+    input  rst,        
+    input  noisy_btn, 
+    //this module will be instantiated 3 times for 3 different buttons
+    output clean_btn   
+    );
+
+    reg d1, d2, d3;
+
+   //according to what Mahan said , shouldn't this be negedge clk ?
+    always @(posedge clk or posedge rst) begin
+        if (rst) begin
+            d1 <= 0;
+            d2 <= 0;
+            d3 <= 0;
+            //again according to Mahan , shouldn't these be set to 1 initially ?
+        end else begin
+            d1 <= noisy_btn;
+            d2 <= d1;
+            d3 <= d2;
+        end
+    end
+
+    assign clean_btn = d1 & d2 & d3;
+endmodule
+
+module workout_fsm(
+    input clk,          // 1Hz clock
+    input start,
+    input skip,
+    input reset,
+    input [7:0] T,      // from combinational circuit
+    output reg [1:0] state_out,
+    output reg finished,
+    output reg [7:0] count
+    );
+
+    //FSM state declaration
+    localparam IDLE    = 2'b00;
+    localparam WORKOUT = 2'b01;
+    localparam REST    = 2'b10;
+    localparam FINISH  = 2'b11;
+
+    reg [1:0] current_state, next_state;
+
+    wire counting_done = 0;
+    wire [15:0] timer_duration = 16'd0;
+    wire fsm_start_timer = 0;
+    // Next state logic
+    always @(*) begin
+        case (current_state)
+            IDLE: begin
+                if (start)
+                    next_state = WORKOUT;
+                    fsm_start_timer = 1;
+                else
+                    next_state = IDLE;
+            end
+            WORKOUT: begin
+                if (reset)
+                    next_state = IDLE;
+                    fsm_start_timer = 0;
+                else if (skip)
+                    next_state = (count > 1) ? REST : FINISH;
+                else
+                    next_state = WORKOUT;
+            end
+            REST: begin
+                timer_duration <= 16'd15;
+                counting_done <= 0;
+                timer u_timer (
+                    .clk(clk_1Hz),
+                    .rst(reset_clean),
+                    .enable(fsm_start_timer),
+                    .duration(timer_duration),
+                    .timeout(counting_done)
+                );
+                if (reset)
+                    next_state = IDLE;
+                    fsm_start_timer = 0;
+                else if (time_done)
+                    next_state = WORKOUT;
+                else
+                    next_state = REST;
+            end
+            FINISH: begin
+                if (reset)
+                    next_state = IDLE;
+                    fsm_start_timer = 0;
+                else
+                    next_state = FINISH;
+            end
+            default: next_state = IDLE;
+        endcase
+    end
+
+    // Sequential state + counter update
+    always @(posedge clk or posedge reset) begin
+        if (reset) begin
+            current_state <= IDLE;
+            count <= T;
+        end else begin
+            current_state <= next_state;
+            if (current_state == WORKOUT && skip && count > 0)
+                count <= count - 1;
+        end
+    end
+
+    // Output logic
+    always @(*) begin
+        // defaults
+        finished = 0;
+        state_out = current_state;
+
+        case (current_state)
+            FINISH: begin
+                finished = 1;
+            end
+        endcase
+    end
+endmodule
+
+module timer (
+    input clk,          // 1 Hz
+    input rst,          // Reset
+    input enable,       // Start the timer
+    input [15:0] duration, // Duration in clock cycles / why 32 bits?
+    output reg timeout      // High when timer expires
+    );
+
+  reg [15:0] count;
+
+  always @(posedge clk) begin
+    if (rst) begin
+      count <= 0;
+      timeout <= 0;
+    end else if (enable) begin
+      if (count < duration) begin
+        count <= count + 1;
+        timeout <= 0;
+      end else begin
+        count <= 0;
+        timeout <= 1;
+      end
+    end else begin
+      timeout <= 0;
+    end
+  end
 endmodule

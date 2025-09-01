@@ -1,8 +1,8 @@
 module timer (
-    input clk,          // System clock
+    input clk,          // 1 Hz
     input rst,          // Reset
     input enable,       // Start the timer
-    input [31:0] duration, // Duration in clock cycles
+    input [31:0] duration, // Duration in clock cycles / why 32 bits?
     output reg timeout      // High when timer expires
 );
 

@@ -49,10 +49,16 @@ module top_module (
     //always@(fsm_count) block ?
 
     // ---------- Binary to BCD conversion ----------
-    wire [7:0] bcd_out;
+    wire [3:0] hundreds;
+    wire [3:0] tens;
+    wire [3:0] ones;
+
     bin2bcd converter (
-        .bin(fsm_count),
-        .bcd(bcd_out)
+        .clk(clk),
+        .eight_bit_value(T_minutes),
+        .ones(ones),
+        .tens(tens),
+        .hundreds(hundreds)
     );
 
     // ---------- 7-segment display control ----------
@@ -299,42 +305,51 @@ module digit_multiplexer (
 endmodule
 
 module bin2bcd (
-    input [7:0] bin,
-    output reg [7:0] bcd
+    input clk,
+    input [7:0] eight_bit_value,
+    output reg [3:0] ones = 0,
+    output reg [3:0] tens,
+    output reg [3:0] hundreds
     );
 
-    reg [3:0] hundreds;
-    reg [3:0] tens;
-    reg [3:0] ones;
-    integer i;
+    reg[3:0] i = 0;
+    reg [19:0] shift_register = 0;
+    reg [3:0] temp_hundreds = 0;
+    reg [3:0] temp_tens = 0;
+    reg [3:0] temp_ones = 0;
 
-    always @(bin) begin
-        // Clear all values
-        hundreds = 4'd0;
-        tens = 4'd0;
-        ones = 4'd0;
-
-        // Double dabble algorithm
-        for (i = 7; i >= 0; i = i - 1) begin
-            // Add 3 to columns >= 5
-            if (hundreds >= 5)
-                hundreds = hundreds + 3;
-            if (tens >= 5)
-                tens = tens + 3;
-            if (ones >= 5)
-                ones = ones + 3;
-
-            // Shift left one
-            hundreds = hundreds << 1;
-            hundreds[0] = tens[3];
-            tens = tens << 1;
-            tens[0] = ones[3];
-            ones = ones << 1;
-            ones[0] = bin[i];
+    reg [7:0] OLD_eight_bit_value = 0;
+    always @(posedge clk) begin //this was initially @(bin) but the youtube video suggested using @(posedge clk)
+        //it seems that using an always block is a better approach than for loop
+        if(i == 0 & (OLD_eight_bit_value != eight_bit_value)) begin
+            shift_register = 20'd0;
+            OLD_eight_bit_value = eight_bit_value;
+            shift_register[7:0] = eight_bit_value;
+            temp_hundreds = shift_register[19:16];
+            temp_tens = shift_register[15:12];
+            temp_ones = shift_register[11:8];
+            i = i + 1;
         end
+        if(i < 9 & i > 0) begin
+            // Add 3 to columns >= 5
+            if (temp_hundreds >= 5) temp_hundreds = temp_hundreds + 3;
+            if (temp_tens >= 5) temp_tens = temp_tens + 3;
+            if (temp_ones >= 5) temp_ones = temp_ones + 3;
 
-        // Combine the BCD digits
-        bcd = {tens, ones};  // Since number is < 100, we only need tens and ones
+            shift_register [19:8] = {temp_hundreds, temp_tens, temp_ones};
+            shift_register = shift_register << 1;
+
+            temp_hundreds = shift_register[19:16];
+            temp_tens = shift_register[15:12];
+            temp_ones = shift_register[11:8];
+            i = i+1;
+        end
+        if(i == 9) begin
+            i = 0;
+            hundreds = temp_hundreds;
+            tens = temp_tens;
+            ones = temp_ones;
+        end
     end
 endmodule
 
