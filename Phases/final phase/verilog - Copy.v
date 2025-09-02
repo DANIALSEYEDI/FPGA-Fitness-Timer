@@ -157,45 +157,15 @@ module DebounceLevel #(parameter integer STABLE_COUNT=250000)( // Adjusted for 5
     end
 endmodule
 
-// New debouncer module
-module debouncer(
-    input clk,
-    input rst, // Assumes active-high reset
-    input noisy_btn,
-    output reg clean_btn
-    );
-    
-    reg bit0;
-    reg bit1;
-    
-    always@(posedge clk or posedge rst) begin
-        if(rst) begin
-            bit0 <= 1'b1;
-            bit1 <= 1'b1;
-            clean_btn <= 1'b1;
-        end else begin
-            bit0 <= noisy_btn;
-            bit1 <= bit0;
-            clean_btn <= bit1 & bit0;
-        end
-    end
-endmodule
-
-// Modified ButtonCond to use the new debouncer
-module ButtonCond #(parameter ACTIVE_LOW=1)(
+module ButtonCond #(parameter ACTIVE_LOW=1, parameter integer STABLE_COUNT=250000)(
     input  clk,
     input rst,
     input btn_in,
     output reg press
      );
     wire lvl_raw;
-    // Using the new debouncer module
-    debouncer udb (
-        .clk(clk), 
-        .rst(rst), 
-        .noisy_btn(btn_in), 
-        .clean_btn(lvl_raw)
-    );
+    DebounceLevel #(.STABLE_COUNT(STABLE_COUNT))
+      udb (.clk(clk), .rst(rst), .din(btn_in), .dout(lvl_raw));
     wire lvl_norm = ACTIVE_LOW ? ~lvl_raw : lvl_raw;
     reg  prev;
     always @(posedge clk or posedge rst) begin
@@ -309,12 +279,12 @@ module workout_fsm(
      );
     wire start_edge, skip_edge, reset_edge;
     wire clk_out;
-    // Note: STABLE_COUNT parameter is no longer used by the new ButtonCond
-    ButtonCond #(.ACTIVE_LOW(1'b1))
+    localparam integer DB_COUNT = 250000; // ~5ms debounce for 50MHz clock
+    ButtonCond #(.ACTIVE_LOW(1'b1), .STABLE_COUNT(DB_COUNT))
       bc_start (.clk(clk), .rst(~reset_btn), .btn_in(start_btn), .press(start_edge));
-    ButtonCond #(.ACTIVE_LOW(1'b1))
+    ButtonCond #(.ACTIVE_LOW(1'b1), .STABLE_COUNT(DB_COUNT))
       bc_skip  (.clk(clk), .rst(~reset_btn), .btn_in(skip_btn),  .press(skip_edge));
-    ButtonCond #(.ACTIVE_LOW(1'b1))
+    ButtonCond #(.ACTIVE_LOW(1'b1), .STABLE_COUNT(DB_COUNT))
       bc_reset (.clk(clk), .rst(~reset_btn), .btn_in(reset_btn), .press(reset_edge));
         
     clk_en_gen #(.DIVIDER(`SYS_CLK)) clkgen (
