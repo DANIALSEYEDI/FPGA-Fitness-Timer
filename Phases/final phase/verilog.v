@@ -224,34 +224,36 @@ module fsm_core_logic(
     output reg buz_mode = 0
     );
     localparam IDLE = 2'b00, EXERCISE = 2'b01, REST = 2'b10;
-    reg [8:0] active_count = 0;
+    
     always @(posedge clk or negedge reset_n) begin
         if (~reset_n) begin
             state        <= IDLE;
             timer        <= 6'b101101;
             curr_idx     <= 0;
-            active_count <= 0;
             buz_pulse    <= 1'b1;
             buz_mode     <= 1'b0;
         end else begin
             buz_pulse <= 1'b0;
             if (reset_edge) begin // Global reset condition
                 state <= IDLE;
+                curr_idx <= 0;
             end else begin
                 case (state)
                     IDLE: begin
                         timer        <= 6'b101101;
-                        curr_idx     <= 0;
-                        active_count <= 0;
+                        // curr_idx is 0, so display shows total_workouts
                         if (start_edge && total_count_in > 0) begin
-                            active_count <= total_count_in;
+                            curr_idx     <= total_count_in; // Start counting down from the total
                             state        <= EXERCISE;
                         end
                     end
                     EXERCISE: begin
                         if (skip_edge) begin
-                            if (active_count > 0)
-                                curr_idx <= (curr_idx == active_count - 1) ? 0 : curr_idx + 1;
+                            // Skip to the next exercise, or end if it's the last one
+                            if (curr_idx > 1)
+                                curr_idx <= curr_idx - 1;
+                            else
+                                state <= IDLE;
                             timer     <= 6'b101101;
                             buz_pulse <= 1'b1;
                         end else if (clk_en_rising) begin
@@ -267,26 +269,31 @@ module fsm_core_logic(
                           
                     REST: begin
                         if (skip_edge) begin
-                            if (active_count > 0)
-                                curr_idx <= (curr_idx == active_count - 1) ? 0 : curr_idx + 1;
+                            // Skip rest and go to next exercise, or end if it's the last one
+                            if (curr_idx > 1)
+                                curr_idx <= curr_idx - 1;
+                            else
+                                state <= IDLE;
                             state     <= EXERCISE;
                             timer     <= 6'b101101;
                             buz_pulse <= 1'b1;
                         end else if (clk_en_rising) begin
                             if (timer == 1) begin
-                                if (curr_idx == active_count - 1) begin
+                                // A full cycle is complete, decrement workout count
+                                if (curr_idx <= 1) begin // This was the last workout
                                     state     <= IDLE;
+                                    curr_idx  <= 0;
                                     buz_pulse <= 1'b1;
                                     buz_mode  <= 1'b1;
                                 end else begin
-                                    curr_idx  <= curr_idx + 1;
+                                    curr_idx  <= curr_idx - 1; // Decrement workout count
                                     state     <= EXERCISE;
                                     timer     <= 6'b101101;
                                     buz_pulse <= 1'b1;
                                 end
-                            end else if (timer != 0) begin
+                            end else if (timer != 0) {
                                 timer <= timer - 1;
-                            end
+                            }
                         end
                     end
                 endcase
