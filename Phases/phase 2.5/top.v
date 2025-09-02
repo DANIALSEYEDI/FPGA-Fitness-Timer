@@ -1,141 +1,242 @@
 //`timescale 1ns/1ps
 
 module top_module (
+
     input clk,           // 40 MHz
+
     input rst,           // async reset (active-high)
+
     input [7:0] switches, // input switches (for initial workout count)
+
     input btn_skip,
+
     input btn_start,
+
     output [4:0] SEG_SEL, 
+
     output [7:0] SEG_DATA,
+
     output [2:0] fsm_state  // for debugging
+
 );
+
+
 
     // ---------- Clock Divider ----------
+
     wire clk_1Hz, clk_500Hz, clk_1kHz, clk_2kHz;
+
     clock_divider u_clkdiv (
+
         .clk_in(clk), 
+
         .reset(rst),
+
         .clk_1Hz(clk_1Hz), 
+
         .clk_500Hz(clk_500Hz),
+
         .clk_1kHz(clk_1kHz), 
+
         .clk_2kHz(clk_2kHz)
+
     );
+
     
+
     // ---------- Combinational Circuit (for initial workout count) ----------
+
     wire [7:0] T_minutes;
+
     combinational_circuit u_comb (.input_bits(switches), .T3(T_minutes));
+
     
+
     // ---------- Button Debouncers ----------
+
     wire clean_skip, clean_start;
+
     debouncer deb_skip(.clk(clk_1kHz), .rst(rst), .noisy_btn(btn_skip), .clean_btn(clean_skip));
+
     debouncer deb_start(.clk(clk_1kHz), .rst(rst), .noisy_btn(btn_start), .clean_btn(clean_start));
 
-    // ---------- Timer Module ----------
-    wire timer_done;
-    wire [7:0] timer_value;
-    wire timer_start, timer_reset;
-    wire [7:0] timer_load_value;
 
-    timer_counter u_timer (
-        .clk(clk_1Hz),          // Use 1Hz clock for seconds counting
-        .rst(rst),
-        .start(timer_start),
-        .reset(timer_reset),
-        .load_value(timer_load_value),
-        .current_value(timer_value),
-        .done(timer_done)
-    );
 
-    // ---------- FSM Integration ----------
+    // ---------- FSM and Timer Integration ----------
+
+    // The FSM runs on the fast clock for responsiveness.
+
+    // It outputs timer control signals to a separate timer module (which runs on clk_1Hz).
+
     wire fsm_done;
+
     wire [7:0] fsm_count;
 
+    wire [7:0] fsm_timer;   // current timer value from timer module
+
+    wire timer_load;
+
+    wire [7:0] timer_preset;
+
+    wire timer_done_signal;
+
+
+
     workout_fsm u_fsm (
+
         .clk(clk),
+
         .reset(rst),
+
         .start(clean_start),
+
         .skip(clean_skip),
-        .timer_done(timer_done),
-        .T(T_minutes),
+
+        .timer_done(timer_done_signal),
+
+        .T(T_minutes),         // initial number of workouts (from switches)
+
         .state_out(fsm_state),
+
         .done(fsm_done),
+
         .count(fsm_count),
-        .timer_start(timer_start),
-        .timer_reset(timer_reset),
-        .timer_load_value(timer_load_value)
-    );
-    
-    // ---------- Display: Convert numbers to BCD for 7-Segment Displays ----------
-    wire [3:0] workout_tens, workout_ones;
-    wire [3:0] timer_tens, timer_ones;
-    
-    // Convert workout count to BCD
-    bin2bcd converter_workout (
-        .binary(fsm_count),
-        .tens(workout_tens),
-        .ones(workout_ones)
+
+        .timer_load(timer_load),
+
+        .timer_preset(timer_preset)
+
     );
 
-    // Convert timer value to BCD
-    bin2bcd converter_timer (
-        .binary(timer_value),
-        .tens(timer_tens),
-        .ones(timer_ones)
+    
+
+    // Timer module (operates at 1Hz)
+
+    // It loads a preset when timer_load is asserted and then counts down.
+
+    timer u_timer (
+
+        .clk_1Hz(clk_1Hz),
+
+        .reset(rst),
+
+        .load(timer_load),
+
+        .preset(timer_preset),
+
+        .timer_val(fsm_timer),
+
+        .timer_done(timer_done_signal)
+
     );
+
+    
+
+    // ---------- Display: Convert numbers to BCD for 7-Segment Displays ----------
+
+    // We want the two left-most digits to show the remaining workouts (fsm_count)
+
+    // and the two right-most digits to show the timer (fsm_timer).
+
+    wire [3:0] workout_tens, workout_ones;
+
+    wire [3:0] timer_tens, timer_ones;
+
+    
+
+    bin2bcd converter_workout (
+
+        .binary(fsm_count),
+
+        .tens(workout_tens),
+
+        .ones(workout_ones)
+
+    );
+
+    
+
+    bin2bcd converter_timer (
+
+        .binary(fsm_timer),
+
+        .tens(timer_tens),
+
+        .ones(timer_ones)
+
+    );
+
+    
+
+    // The BCDcontrol module selects which digit to display.
+
+    // Map:
+
+    //   digit1 (rightmost) = timer ones
+
+    //   digit2 = timer tens
+
+    //   digit3 = workout ones
+
+    //   digit4 (leftmost) = workout tens
 
     wire [2:0] refresh_counter;
-    wire [3:0] bcd_digit;
+
+    wire [4:0] bcd_digit;
+
     
+
     refreshCounter refresh_counter_inst (
+
         .refresh_clock(clk_500Hz),
+
         .refreshCounter(refresh_counter)
+
     );
+
     
+
     BCDcontrol bcd_control (
-        .digit1(timer_ones),    // Right-most digit shows timer ones
-        .digit2(timer_tens),    // Second right-most shows timer tens
-        .digit3(workout_ones),  // Second left-most shows workout ones
-        .digit4(workout_tens),  // Left-most shows workout tens
+
+        .digit1(timer_ones),
+
+        .digit2(timer_tens),
+
+        .digit3(workout_ones),
+
+        .digit4(workout_tens),
+
         .refreshCounter(refresh_counter),
+
         .one_digit(bcd_digit)
+
     );
+
     
+
     digit_multiplexer digit_mux (
+
         .refreshCounter(refresh_counter),
+
         .SEG_SEL(SEG_SEL)
+
     );
+
     
+
     bcd2seven_seg bcd_to_7seg (
+
         .digit(bcd_digit),
+
         .SEG_DATA(SEG_DATA)
+
     );
+
     
-endmodule
-
-// Timer Counter Module
-module timer_counter (
-    input wire clk,              // 1Hz clock
-    input wire rst,
-    input wire start,            // Start counting down
-    input wire reset,            // Reset timer to load_value
-    input wire [7:0] load_value, // Value to load when reset
-    output reg [7:0] current_value,
-    output wire done             // High when counter reaches 0
-);
-
-    always @(posedge clk or posedge rst) begin
-        if (rst)
-            current_value <= 8'd0;
-        else if (reset)
-            current_value <= load_value;
-        else if (start && current_value > 0)
-            current_value <= current_value - 1;
-    end
-
-    assign done = (current_value == 0);
 
 endmodule
+
+
 
 // ---------------------------
 
@@ -270,6 +371,7 @@ module clock_divider (
             end else
 
                 count_1Hz <= count_1Hz + 1;
+
             
 
             // 500Hz clock
@@ -283,6 +385,7 @@ module clock_divider (
             end else
 
                 count_500Hz <= count_500Hz + 1;
+
             
 
             // 1kHz clock
@@ -296,6 +399,7 @@ module clock_divider (
             end else
 
                 count_1kHz <= count_1kHz + 1;
+
             
 
             // 2kHz clock
@@ -502,6 +606,50 @@ endmodule
 
 // ---------------------------
 
+// Timer Module: operates on clk_1Hz
+
+// ---------------------------
+
+module timer (
+
+    input clk_1Hz,         // 1Hz clock for countdown
+
+    input reset,           // active-high reset
+
+    input load,            // when asserted, preload preset value
+
+    input [7:0] preset,    // preset value (e.g., 45 for workout, 15 for rest)
+
+    output reg [7:0] timer_val, // current timer value
+
+    output timer_done      // asserted when timer_val reaches 0
+
+);
+
+    always @(posedge clk_1Hz or posedge reset) begin
+
+        if (reset)
+
+            timer_val <= 0;
+
+        else if (load)
+
+            timer_val <= preset;
+
+        else if(timer_val > 0)
+
+            timer_val <= timer_val - 1;
+
+    end
+
+    assign timer_done = (timer_val == 0);
+
+endmodule
+
+
+
+// ---------------------------
+
 // FSM Module with Timer Control
 
 // ---------------------------
@@ -516,7 +664,7 @@ module workout_fsm (
 
     input skip,               // debounced skip (active-high)
 
-    input timer_done,
+    input timer_done,         // from timer module (1Hz)
 
     input [7:0] T,            // initial number of workouts
 
@@ -526,85 +674,168 @@ module workout_fsm (
 
     output reg [7:0] count,
 
-    output reg timer_start,
+    output reg timer_load,          // asserted when a new period starts
 
-    output reg timer_reset,
+    output reg [7:0] timer_preset   // preset value to load into timer (45 or 15)
 
-    output reg [7:0] timer_load_value
+    );
+	 /*
 
-);
+    localparam IDLE    = 2'b00;
 
-    // State definitions
-    localparam IDLE = 3'd0;
-    localparam WORKOUT = 3'd1;
-    localparam REST = 3'd2;
-    localparam FINISH = 3'd3;
+    localparam WORKOUT = 2'b01;
 
-    // Timer constants
-    localparam WORKOUT_TIME = 8'd45;  // 45 seconds for workout
-    localparam REST_TIME = 8'd15;     // 15 seconds for rest
+    localparam REST    = 2'b10;
 
-    reg [2:0] state;
+    localparam FINISH  = 2'b11;
+	 */
+	 localparam IDLE = 3'b000;
+	 localparam WORKOUT = 3'b001;
+	 localparam WORKOUT_WAIT = 3'b010;
+	 localparam REST = 3'b011;
+	 localparam REST_WAIT = 3'b100;
+	 localparam FINISH = 3'b101;
 
-    always @(posedge clk or posedge reset) begin
-        if (reset) begin
-            state <= IDLE;
-            count <= 8'd0;
-            done <= 1'b0;
-            timer_start <= 1'b0;
-            timer_reset <= 1'b0;
-            timer_load_value <= 8'd0;
-        end
-        else begin
-            case (state)
-                IDLE: begin
-                    if (start) begin
-                        state <= WORKOUT;
-                        count <= T;
-                        timer_load_value <= WORKOUT_TIME;
-                        timer_reset <= 1'b1;
-                        timer_start <= 1'b1;
-                    end
-                end
 
-                WORKOUT: begin
-                    timer_reset <= 1'b0;
-                    if (skip || timer_done) begin
-                        if (count <= 1) begin
-                            state <= FINISH;
-                            count <= 0;
-                            timer_start <= 1'b0;
-                        end
-                        else begin
-                            state <= REST;
-                            count <= count - 1;
-                            timer_load_value <= REST_TIME;
-                            timer_reset <= 1'b1;
-                        end
-                    end
-                end
+    
 
-                REST: begin
-                    timer_reset <= 1'b0;
-                    if (skip || timer_done) begin
-                        state <= WORKOUT;
-                        timer_load_value <= WORKOUT_TIME;
-                        timer_reset <= 1'b1;
-                    end
-                end
+    reg [2:0] current_state, next_state;
+	 
+	 reg start_prev, skip_prev;
+	 wire start_falling, skip_falling;
+	 
+	 assign start_falling = (start_prev && ~start);
+	 assign skip_falling = (skip_prev && ~skip);
 
-                FINISH: begin
-                    done <= 1'b1;
-                    timer_start <= 1'b0;
-                end
+    
 
-                default: state <= IDLE;
-            endcase
-        end
-    end
+    // Next state and timer control combinational logic.
 
     always @(*) begin
-        state_out = state;
+
+        // Default: hold state and do not load new timer value.
+
+        next_state = current_state;
+
+        timer_load = 1'b0;
+
+        timer_preset = 8'd0;
+
+        
+
+        case (current_state)
+
+            IDLE: begin
+
+                if (start_falling) begin
+
+                    next_state = WORKOUT;
+
+                end
+
+            end
+
+            WORKOUT: begin
+					timer_load = 1'b1;
+					timer_preset = 8'd45;
+					next_state = WORKOUT_WAIT;
+
+            end
+				WORKOUT_WAIT : begin
+					if(skip_falling) begin
+						next_state = REST;
+					end
+				end
+				REST : begin
+					timer_load = 1'b1;
+					timer_preset = 8'd15;
+					next_state = REST_WAIT;
+				end
+				
+
+            REST_WAIT : begin
+
+                if (skip_falling || timer_done) begin
+
+                    // Decrement workout count and decide next state.
+
+                    if (count > 1)
+
+                        next_state = WORKOUT;
+
+						  else
+
+                        next_state = FINISH;
+
+                end
+
+            end
+
+            FINISH: begin
+
+                next_state = FINISH;
+					 if(start_falling) begin
+						next_state = IDLE;
+					end
+
+            end
+            
+            default: next_state = IDLE;
+
+        endcase
+
+    end
+
+    
+
+    // FSM sequential update.
+
+    always @(posedge clk or negedge reset) begin
+
+        if (~reset) begin
+
+            current_state <= IDLE;
+
+            count <= T;  // initialize workouts
+
+            done  <= 1'b0;
+				start_prev <= 1'b1;
+				skip_prev <= 1'b1;
+
+        end else begin
+
+            current_state <= next_state;
+				start_prev <= start;
+				skip_prev <= skip;
+				
+				if(current_state == IDLE) begin
+					count <= T;
+					done <= 1'b0;
+				end
+				else if((current_state == REST_WAIT) && (next_state == WORKOUT || next_state == FINISH)) begin
+					if(count > 0)
+						count <= count -1;
+				end
+				else if(next_state == FINISH) begin
+					done <= 1'b1;
+					count <= 0;
+				end
+				else if(current_state == FINISH && next_state == IDLE) begin
+					done <= 1'b0;
+				end
+
+        end
+
+    end
+
+    
+
+    // Output current state for debugging.
+
+    always @(*) begin
+
+        state_out = current_state;
+
     end
 
 endmodule
@@ -631,3 +862,6 @@ module debouncer(
 		end
 	end
 endmodule
+
+
+

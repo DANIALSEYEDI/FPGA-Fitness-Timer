@@ -1,0 +1,1064 @@
+`timescale 1ns/1ps
+
+
+
+`define SYS_CLK 50_000_000
+
+
+
+module karno_map_logic(
+
+    input [2:0] weight,
+
+    input [1:0] calories,
+
+    output [7:0] out
+
+	 );
+	 
+
+    assign out[7] = (~weight[2] & ~weight[1] & calories[1]) | (~weight[2] & ~weight[0] & calories[1]) |
+
+    (~weight[2] & calories[1] & calories[0]) | (~weight[1] & ~weight[0] & calories[1] & calories[0]);
+
+    assign out[6] = (~weight[2] & ~weight[1] & calories[0]) | (~weight[2] & ~calories[1] & calories[0]) |
+
+    (weight[1] & weight[0] & calories[1] & ~calories[0]) | (~weight[1] & ~weight[0] & ~calories[1] & calories[0]) |
+
+    (weight[2] & calories[1] & ~calories[0]) | (weight[2] & weight[1] & calories[1]) | (~weight[1] & weight[0] & calories[1] & calories[0]);
+
+    assign out[5] = (~weight[2] & ~calories[1] & ~calories[0]) | (~weight[2] & weight[1] & weight[0] & ~calories[0]) |
+
+    (~weight[1] & ~weight[0] & ~calories[0]) | (weight[2] & weight[0] & calories[0]) | (weight[2] & weight[1] & calories[0]) |    (~weight[2] & ~weight[1] & ~calories[1]) | (~weight[2] & ~weight[0] & calories[1] & calories[0]);
+
+    assign out[4] = (~weight[2] & ~weight[1] & ~weight[0]) | (~weight[2] & weight[1] & weight[0] & calories[1]) |    (weight[2] & ~weight[1] & weight[0]) | (weight[2] & weight[1] & ~weight[0] & ~calories[0]) | (~weight[2] & ~weight[1] & ~calories[0]) |    (~weight[2] & ~weight[0] & ~calories[1] & calories[0]) | (weight[2] & weight[1] & ~calories[1]);
+
+    assign out[3] = (~weight[2] & ~weight[1] & ~weight[0] & ~calories[1]) | (~weight[1] & weight[0] & calories[1] & calories[0]) |
+
+    (weight[1] & ~weight[0] & calories[1] & calories[0]) | (~weight[2] & weight[1] & weight[0] & ~calories[1] & calories[0]) |
+
+    (weight[2] & ~weight[1] & weight[0]) | (weight[2] & weight[0] & ~calories[0]) | (weight[1] & ~weight[0] & ~calories[1] & ~calories[0]);
+
+    assign out[2] = (~weight[2] & ~weight[1] & ~weight[0] & ~calories[0]) | (~weight[1] & weight[0] & ~calories[1] & calories[0]) |
+
+    (~weight[2] & ~weight[1] & calories[1] & ~calories[0]) | (weight[1] & ~weight[0] & ~calories[1] & calories[0]) |
+
+    (~weight[2] & weight[1] & weight[0] & ~calories[1] & ~calories[0]) | (weight[1] & weight[0] & calories[1] & calories[0]) |
+
+    (weight[2] & ~weight[1] & weight[0] & ~calories[1]) | (~weight[1] & ~weight[0] & calories[1] & ~calories[0]) |
+
+    (weight[2] & ~weight[0] & calories[1] & calories[0]);
+
+    assign out[1] = (~weight[1] & weight[0] & ~calories[0]) |
+
+    (~weight[2] & weight[1] & calories[0]) | (weight[2] & ~weight[0] & ~calories[1] & calories[0]) | (weight[1] & ~calories[1] & calories[0]) |
+
+    (~weight[2] & weight[1] & ~calories[1]) | (weight[2] & weight[1] & ~weight[0] & ~calories[0]) |
+
+    (weight[2] & weight[0] & calories[1] & ~calories[0]);
+
+    assign out[0] = (~weight[2] & weight[1] & weight[0] & ~calories[1] & calories[0]) |
+
+    (weight[2] & ~weight[0] & ~calories[1]) | (weight[2] & ~weight[0] & calories[0]) | (~weight[2] & weight[1] & ~weight[0] & ~calories[0]) |
+
+    (~weight[2] & weight[1] & ~weight[0] & calories[1]) | (~weight[2] & weight[1] & calories[1] & ~calories[0]) |
+
+    (weight[2] & weight[1] & weight[0] & ~calories[0]);
+
+endmodule
+
+
+
+module halfAdder(
+
+    input A,B,
+
+    output SUM ,COUT 
+
+	 );
+
+    assign SUM = (A ^ B) ;
+
+    assign COUT= (A & B);
+
+endmodule
+
+
+
+module fullAdder(
+
+    input A,B, CIN,
+
+    output SUM ,COUT
+
+	 );
+
+    wire [1:0] temp1;
+
+    wire [1:0] temp2;
+
+    halfAdder sum1(.A(A),.B(B),.SUM(temp1[0]),.COUT(temp1[1]));
+
+    halfAdder sum2(.A(temp1[0]),.B(CIN),.SUM(SUM),.COUT(temp2[1]));
+
+    assign COUT = temp2[1]|temp1[1];
+
+
+
+endmodule
+
+
+
+
+
+
+
+module eightBitAdder(
+
+    input [7:0] A, B,
+
+    output [8:0] S
+
+	 );
+
+    wire [7:0] carry;
+
+    fullAdder fa0(.A(A[0]), .B(B[0]), .CIN(1'b0),     .SUM(S[0]), .COUT(carry[0]));
+
+    fullAdder fa1(.A(A[1]), .B(B[1]), .CIN(carry[0]), .SUM(S[1]), .COUT(carry[1]));
+
+    fullAdder fa2(.A(A[2]), .B(B[2]), .CIN(carry[1]), .SUM(S[2]), .COUT(carry[2]));
+
+    fullAdder fa3(.A(A[3]), .B(B[3]), .CIN(carry[2]), .SUM(S[3]), .COUT(carry[3]));
+
+    fullAdder fa4(.A(A[4]), .B(B[4]), .CIN(carry[3]), .SUM(S[4]), .COUT(carry[4]));
+
+    fullAdder fa5(.A(A[5]), .B(B[5]), .CIN(carry[4]), .SUM(S[5]), .COUT(carry[5]));
+
+    fullAdder fa6(.A(A[6]), .B(B[6]), .CIN(carry[5]), .SUM(S[6]), .COUT(carry[6]));
+
+    fullAdder fa7(.A(A[7]), .B(B[7]), .CIN(carry[6]), .SUM(S[7]), .COUT(carry[7]));
+
+    assign S[8] = carry[7];
+
+
+
+endmodule    
+
+
+
+
+
+
+
+module gender_apply(
+
+    input gender,
+
+    input [7:0] in_data,
+
+    output [8:0] out_num
+
+	 );
+
+
+
+    wire [8:0] ext = {1'b0, in_data};
+
+    wire [8:0] shifted_sum;
+
+    eightBitAdder sum1(
+
+    .A(in_data),
+
+    .B(in_data >> 3),
+
+    .S(shifted_sum)
+
+	 );
+
+    assign out_num = gender ? shifted_sum : ext;
+
+endmodule
+
+
+
+module met_divider(
+
+    input [8:0] data_in,
+
+    input [1:0] MET,
+
+    output [8:0] out_time
+
+	 );
+
+    wire [8:0] a = data_in;
+
+    wire [8:0] b = data_in >> 1;
+
+    wire [8:0] c = data_in >> 2;
+
+    wire [8:0] d = data_in >> 3;
+
+    assign out_time = (~MET[1] & ~MET[0]) ? a :(~MET[1] &  MET[0]) ? b :
+
+      ( MET[1] & ~MET[0]) ? c : d;
+
+endmodule
+
+
+
+module calc_total(
+
+    input [2:0] weight_in,
+
+    input [1:0] calories_in,
+
+    input [1:0] MET_in,
+
+    input gender_in,
+
+    output [8:0] final_out
+
+	 );
+
+    wire [7:0] stage1;
+
+    wire [8:0] stage2;
+
+    karno_map_logic fv(.weight(weight_in), .calories(calories_in), .out(stage1));
+
+    gender_apply ga(.gender(gender_in), .in_data(stage1), .out_num(stage2));
+
+    met_divider md(.data_in(stage2), .MET(MET_in), .out_time(final_out));
+
+endmodule
+
+
+
+module bin2bcd(
+
+    input [8:0] binary,
+
+    output reg [3:0] hundreds,
+
+    output reg [3:0] tens,
+
+    output reg [3:0] ones
+
+
+
+	 );
+
+
+
+    integer i;
+
+    reg [11:0] bcd;
+
+    always @(*) begin
+
+        bcd = 0;
+
+        for (i = 8; i >= 0; i = i - 1) begin
+
+            if (bcd[3:0] >= 5) bcd = bcd + 12'd3;
+
+            if (bcd[7:4] >= 5) bcd = bcd + 12'd48;
+
+            if (bcd[11:8] >= 5) bcd = bcd + 12'd768;
+
+            bcd = {bcd[10:0], binary[i]};
+
+        end
+
+        hundreds = bcd[11:8];
+
+        tens = bcd[7:4];
+
+        ones = bcd[3:0];
+
+    end
+
+endmodule
+
+
+
+module clk_en_gen #(parameter DIVIDER = `SYS_CLK)(
+
+    input clk,
+
+    input reset_n,
+
+    output reg clk_en
+
+	 );
+
+
+
+    reg [31:0] ctr;
+
+    always @(posedge clk or negedge reset_n) begin
+
+        if (~reset_n) begin
+
+            ctr <= 0;
+
+            clk_en <= 0;
+
+        end else begin
+
+            if (ctr == DIVIDER - 1) begin
+
+                ctr <= 0;
+
+                clk_en <= 1;
+
+            end else begin
+
+                ctr <= ctr + 1;
+
+                clk_en <= 0;
+
+            end
+
+        end
+
+    end
+
+endmodule
+
+
+
+module DebounceLevel #(parameter integer STABLE_COUNT=250000)( // Adjusted for 50MHz
+
+    input clk, rst, din, output reg dout
+	 );
+	 
+
+    reg [31:0] cnt; reg stable;
+
+    always @(posedge clk or posedge rst) begin
+
+        if (rst) begin
+
+            cnt<=0;
+
+            stable<=1'b1;
+
+            dout<=1'b1;
+
+        end else begin
+
+            if (din==stable)
+
+                cnt<=0;
+
+            else if (cnt==STABLE_COUNT) begin
+
+                stable<=din;
+
+                dout<=din;
+
+                cnt<=0;
+
+            end
+
+            else
+
+                cnt<=cnt+1;
+
+        end
+
+    end
+
+endmodule
+
+
+
+module ButtonCond #(parameter ACTIVE_LOW=1, parameter integer STABLE_COUNT=250000)(
+
+    input  clk,
+
+    input rst,
+
+    input btn_in,
+
+    output reg press
+
+	 );
+
+    wire lvl_raw;
+
+    DebounceLevel #(.STABLE_COUNT(STABLE_COUNT))
+
+      udb (.clk(clk), .rst(rst), .din(btn_in), .dout(lvl_raw));
+
+    wire lvl_norm = ACTIVE_LOW ? ~lvl_raw : lvl_raw;
+
+    reg  prev;
+
+
+
+    always @(posedge clk or posedge rst) begin
+
+        if (rst) begin
+
+            prev<=1'b0;
+
+            press<=1'b0;
+
+        end else begin
+
+            press <= (lvl_norm & ~prev);
+
+            prev <= lvl_norm;
+
+        end
+
+    end
+
+endmodule
+
+
+
+module fsm_core_logic(
+
+    input clk,
+
+    input reset_n,
+
+    input start_edge,
+
+    input skip_edge,
+
+    input reset_edge,
+
+    input clk_en_rising,
+
+    input [8:0] total_count_in,
+
+    output reg [1:0] state = 2'b00,
+
+    output reg [5:0] timer = 6'b101101,
+
+    output reg [7:0] curr_idx = 0,
+
+    output reg buz_pulse = 1'b0,
+
+    output reg buz_mode = 0
+
+	);
+
+
+
+    localparam IDLE = 2'b00, EXERCISE = 2'b01, REST = 2'b10;
+
+    reg [8:0] active_count = 0;
+
+    always @(posedge clk or negedge reset_n) begin
+
+        if (~reset_n) begin
+
+            state        <= IDLE;
+
+            timer        <= 6'b101101;
+
+            curr_idx     <= 0;
+
+            active_count <= 0;
+
+            buz_pulse    <= 1'b1;
+
+            buz_mode     <= 1'b0;
+
+        end else begin
+
+            buz_pulse <= 1'b0;
+
+            if (reset_edge) begin // Global reset condition
+
+                state <= IDLE;
+
+            end else begin
+
+                case (state)
+
+                    IDLE: begin
+
+                        timer        <= 6'b101101;
+
+                        curr_idx     <= 0;
+
+                        active_count <= 0;
+
+                        if (start_edge && total_count_in > 0) begin
+
+                            active_count <= total_count_in;
+
+                            state        <= EXERCISE;
+
+                        end
+
+                    end
+
+
+
+                    EXERCISE: begin
+
+                        if (skip_edge) begin
+
+                            if (active_count > 0)
+
+                                curr_idx <= (curr_idx == active_count - 1) ? 0 : curr_idx + 1;
+
+                            timer     <= 6'b101101;
+
+                            buz_pulse <= 1'b1;
+
+                        end else if (clk_en_rising) begin
+
+                            if (timer == 1) begin
+
+                                state     <= REST;
+
+                                timer     <= 6'b001111;
+
+                                buz_pulse <= 1'b1;
+
+                            end else if (timer != 0) begin
+
+                                timer <= timer - 1;
+
+                            end
+
+                        end
+
+                    end
+						  
+
+                    REST: begin
+
+                        if (skip_edge) begin
+
+                            if (active_count > 0)
+
+                                curr_idx <= (curr_idx == active_count - 1) ? 0 : curr_idx + 1;
+
+                            state     <= EXERCISE;
+
+                            timer     <= 6'b101101;
+
+                            buz_pulse <= 1'b1;
+
+                        end else if (clk_en_rising) begin
+
+                            if (timer == 1) begin
+
+                                if (curr_idx == active_count - 1) begin
+
+                                    state     <= IDLE;
+
+                                    buz_pulse <= 1'b1;
+
+                                    buz_mode  <= 1'b1;
+
+                                end else begin
+
+                                    curr_idx  <= curr_idx + 1;
+
+                                    state     <= EXERCISE;
+
+                                    timer     <= 6'b101101;
+
+                                    buz_pulse <= 1'b1;
+
+                                end
+
+                            end else if (timer != 0) begin
+
+                                timer <= timer - 1;
+
+                            end
+
+                        end
+
+                    end
+
+                endcase
+
+            end
+
+        end
+
+    end
+
+endmodule
+
+
+
+
+
+
+
+module workout_fsm(
+
+    input start_btn,
+
+    input skip_btn,
+
+    input reset_btn,
+
+    input clk,
+
+    input [8:0] total_count_in,
+
+    output [1:0] state,
+
+    output [5:0] timer,
+
+    output [7:0] curr_idx,
+
+    output buz_pulse,
+
+    output buz_mode
+
+	 );
+
+
+    wire start_edge, skip_edge, reset_edge;
+
+    wire clk_out;
+
+
+
+    localparam integer DB_COUNT = 250000; // ~5ms debounce for 50MHz clock
+
+
+
+    ButtonCond #(.ACTIVE_LOW(1'b1), .STABLE_COUNT(DB_COUNT))
+
+
+
+      bc_start (.clk(clk), .rst(~reset_btn), .btn_in(start_btn), .press(start_edge));
+
+
+
+    ButtonCond #(.ACTIVE_LOW(1'b1), .STABLE_COUNT(DB_COUNT))
+
+
+
+      bc_skip  (.clk(clk), .rst(~reset_btn), .btn_in(skip_btn),  .press(skip_edge));
+
+
+
+    ButtonCond #(.ACTIVE_LOW(1'b1), .STABLE_COUNT(DB_COUNT))
+
+
+
+      bc_reset (.clk(clk), .rst(~reset_btn), .btn_in(reset_btn), .press(reset_edge));
+		
+
+    clk_en_gen #(.DIVIDER(`SYS_CLK)) clkgen (
+
+        .clk(clk),
+
+        .reset_n(reset_btn),
+
+        .clk_en(clk_out)
+
+    );
+	 
+
+    fsm_core_logic fcl (
+
+        .clk(clk),
+
+        .reset_n(reset_btn),
+
+        .start_edge(start_edge),
+
+        .skip_edge(skip_edge),
+
+        .reset_edge(reset_edge),
+
+        .clk_en_rising(clk_out),
+
+        .total_count_in(total_count_in),
+
+        .state(state),
+
+        .timer(timer),
+
+        .curr_idx(curr_idx),
+
+        .buz_pulse(buz_pulse),
+
+        .buz_mode(buz_mode)
+
+    );
+
+endmodule
+
+
+
+module seg_driver(
+
+    input [3:0] digit,
+
+    output reg [7:0] seg_out
+
+	);
+	
+
+    always @(*) begin
+
+        case (digit)
+
+            4'd0: seg_out = 8'b00111111;
+
+            4'd1: seg_out = 8'b00000110;
+
+            4'd2: seg_out = 8'b01011011;
+
+            4'd3: seg_out = 8'b01001111;
+
+            4'd4: seg_out = 8'b01100110;
+
+            4'd5: seg_out = 8'b01101101;
+
+            4'd6: seg_out = 8'b01111101;
+
+            4'd7: seg_out = 8'b00000111;
+
+            4'd8: seg_out = 8'b01111111;
+
+            4'd9: seg_out = 8'b01101111;
+
+            default: seg_out = 8'b00000000;
+
+        endcase
+
+    end
+
+endmodule
+
+
+
+module seg_multiplexer(
+
+    input clk,
+
+    input reset_n,
+
+    input [8:0] show_value,
+
+    input [5:0] timer,
+
+    output reg [4:0] sel = 5'b00001,
+
+    output reg [3:0] digit
+
+
+
+	);
+
+
+
+    reg [18:0] counter = 0;
+
+    wire clk_tick = (counter == 100000 - 1);
+
+    wire [3:0] t_h, t_t, t_o;
+
+    bin2bcd timer_bcd(.binary({3'b0, timer}), .hundreds(t_h), .tens(t_t), .ones(t_o));
+
+    wire [3:0] v_h, v_t, v_o;
+
+    bin2bcd value_bcd(.binary(show_value), .hundreds(v_h), .tens(v_t), .ones(v_o));
+
+
+
+    always @(posedge clk or negedge reset_n) begin
+
+        if (~reset_n) begin
+
+            sel <= 5'b00001;
+
+            digit <= 4'd0;
+
+            counter <= 0;
+
+        end else if (clk_tick) begin
+
+            counter <= 0;
+
+            case (sel)
+
+                5'b00001: begin sel <= 5'b00010; digit <= t_t; end
+
+                5'b00010: begin sel <= 5'b00100; digit <= v_o; end
+
+                5'b00100: begin sel <= 5'b01000; digit <= v_t; end
+
+                5'b01000: begin sel <= 5'b00001; digit <= t_o; end
+
+                default:  begin sel <= 5'b00001; digit <= 4'd0; end
+
+            endcase
+
+
+
+        end else begin
+
+            counter <= counter + 1;
+
+        end
+
+    end
+
+endmodule
+
+
+
+module BuzzerControllerParamR(
+
+    input clk,
+
+    input rst,
+
+    input shortBeepTrig,
+
+    input longBeepTrig,
+
+    output buzzer
+
+
+
+	);
+
+
+
+    localparam [25:0] SHORT_CYC=26'd10000000;  // ~0.20 s
+
+    localparam [25:0] LONG_CYC =26'd30000000; // ~0.60 s
+
+    localparam [15:0] SHORT_DIV=16'd24999;    // ~1 kHz
+
+    localparam [15:0] LONG_DIV =16'd12499;     // ~2 kHz
+
+    reg buzzReq; reg [25:0] cntDur; reg [15:0] divCnt, divSel; reg sq;
+
+
+
+    always @(posedge clk or posedge rst) begin
+
+        if (rst) begin
+
+            buzzReq<=0;
+
+            cntDur<=0;
+
+            divCnt<=0;
+
+            divSel<=SHORT_DIV;
+
+            sq<=0;
+
+        end else begin
+
+            if (longBeepTrig) begin
+
+                buzzReq<=1;
+
+                cntDur<=LONG_CYC;
+
+                divSel<=LONG_DIV;
+
+            end else if (shortBeepTrig) begin
+
+                buzzReq<=1;
+
+                cntDur<=SHORT_CYC;
+
+                divSel<=SHORT_DIV;
+
+            end else if (cntDur!=0) begin
+
+                cntDur<=cntDur-1;
+
+                buzzReq<=1;
+
+            end else begin
+
+                buzzReq<=0;
+
+            end
+
+
+
+            if (!buzzReq) begin
+
+                divCnt<=0;
+
+                sq<=0;
+
+            end else if (divCnt==divSel) begin
+
+                divCnt<=0;
+
+                sq<=~sq;
+
+            end else
+
+                divCnt<=divCnt+1;
+
+        end
+
+    end
+
+    assign buzzer = sq;
+
+endmodule
+
+
+
+module mainmodule (
+
+
+
+    input start,
+
+    input skip,
+
+    input reset,
+
+    input clk,
+
+    input [2:0] weight,
+
+    input [1:0] calories,
+
+    input [1:0] MET,
+
+    input gender,
+
+    output [4:0] seg_sel,
+
+    output [7:0] seg_data,
+
+    output buzzer_out
+
+	);
+
+
+
+    wire [1:0] state_w;
+
+    wire [5:0] timer_w;
+
+    wire [7:0] curr_idx_w;
+
+    wire act_buz_w;
+
+    wire buz_mode_w;
+
+    wire [8:0] total_workouts;
+
+    calc_total calc1(
+
+        .weight_in(weight),
+
+        .calories_in(calories),
+
+        .MET_in(MET),
+
+        .gender_in(gender),
+
+        .final_out(total_workouts)
+
+    );
+
+
+
+    workout_fsm f1(
+
+        .start_btn(start),
+
+        .skip_btn(skip),
+
+        .reset_btn(reset),
+
+        .clk(clk),
+
+        .total_count_in(total_workouts),
+
+        .state(state_w),
+
+        .timer(timer_w),
+
+        .curr_idx(curr_idx_w),
+
+        .buz_pulse(act_buz_w),
+
+        .buz_mode(buz_mode_w)
+
+    );
+
+
+
+    wire short_beep, long_beep;
+
+    assign short_beep = act_buz_w & ~buz_mode_w;
+
+    assign long_beep = act_buz_w & buz_mode_w;
+
+
+
+    BuzzerControllerParamR b1(
+
+        .clk(clk),
+
+        .rst(~reset), // New buzzer uses active-high reset
+
+        .shortBeepTrig(short_beep),
+
+        .longBeepTrig(long_beep),
+
+        .buzzer(buzzer_out)
+
+    );
+
+
+
+    wire [8:0] to_show;
+
+    assign to_show = (state_w == 2'b00) ? total_workouts : {1'b0, curr_idx_w};
+
+    wire [3:0] seg_digit;
+	 
+
+    seg_multiplexer s1_real(
+
+        .clk(clk),
+
+        .reset_n(reset),
+
+        .show_value(to_show),
+
+        .timer(timer_w),
+
+        .sel(seg_sel),
+
+        .digit(seg_digit)
+
+    );
+
+
+
+    seg_driver s2(.digit(seg_digit), .seg_out(seg_data));
+
+
+
+endmodule

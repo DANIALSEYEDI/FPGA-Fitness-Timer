@@ -1,7 +1,7 @@
 module combinational_circuit (
     input  [7:0] input_bits,
     output [7:0] T3
-);
+    );
 
     wire w2 = input_bits[7];
     wire w1 = input_bits[6];
