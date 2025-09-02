@@ -57,15 +57,15 @@ module top_module (
     assign to_show = (state_w == 2'b00) ? total_workouts : {1'b0, curr_idx_w};
 
     //---------- New 7-Segment Display Logic Wires ----------
-    wire [3:0] timer_tens, timer_ones;
-    wire [3:0] workout_tens, workout_ones;
+    wire [3:0] timer_tens, timer_ones;   //BCD
+    wire [3:0] workout_tens, workout_ones;  //BCD
     wire [3:0] selected_digit;
     wire [2:0] refresh_counter_wire;
     wire refresh_clk;
 
     //---------- Clock Divider for Display Refresh (~760 Hz) ----------
     reg [15:0] refresh_clk_counter = 0;
-    assign refresh_clk = refresh_clk_counter[15];
+    assign refresh_clk = refresh_clk_counter[15];  // clock output
     always @(posedge clk) begin
         refresh_clk_counter <= refresh_clk_counter + 1;
     end
@@ -81,13 +81,13 @@ module top_module (
         .SEG_SEL(seg_sel)
     );
     
-    bin2bcd timer_converter (
+    bin_to_bcd timer_converter (
         .binary(timer_w), // timer is 6-bit, fits in 8-bit input
         .tens(timer_tens),
         .ones(timer_ones)
     );
 
-    bin2bcd workout_converter (
+    bin_to_bcd workout_converter (
         .binary(to_show[7:0]),
         .tens(workout_tens),
         .ones(workout_ones)
@@ -108,6 +108,8 @@ module top_module (
     );
 
 endmodule
+
+
 
 
 module combinational_circuit (
@@ -248,6 +250,7 @@ module debouncer(
 endmodule
 
 
+
 module ButtonCond #(parameter ACTIVE_LOW=1)(
     input  clk,
     input rst,
@@ -255,7 +258,6 @@ module ButtonCond #(parameter ACTIVE_LOW=1)(
     output reg press
     );
     wire lvl_raw;
-
     debouncer udb (
         .clk(clk), 
         .rst(rst), 
@@ -328,7 +330,7 @@ module fsm_core_logic(
                                 buz_pulse <= 1'b1;
                             end else if (timer != 0) begin
                                 timer <= timer - 1;
-                            end
+                            end 
                         end
                     end
                     REST: begin
@@ -462,6 +464,8 @@ module BuzzerControllerParamR(
 endmodule
 
 //---------- New Display Modules ----------
+
+
 module bcd2seven_seg ( 
     input [3:0] digit, 
     output reg [7:0] SEG_DATA = 0
@@ -479,10 +483,12 @@ module bcd2seven_seg (
             4'd7: SEG_DATA = 8'b00000111; 
             4'd8: SEG_DATA = 8'b01111111;
             4'd9: SEG_DATA = 8'b01101111; 
-            default: SEG_DATA = 8'b00000000; // turn off all segments
+            default: SEG_DATA = 8'b00000000; // Invalid input (all segments off)
         endcase 
     end 
 endmodule 
+
+
 
 module BCDcontrol (
     input [3:0] digit1,  // rightmost digit
@@ -503,6 +509,8 @@ module BCDcontrol (
     end
 endmodule
 
+
+
 module refreshCounter (
     input refresh_clock,
     output reg [2:0] refreshCounter = 0
@@ -514,6 +522,7 @@ module refreshCounter (
             refreshCounter <= refreshCounter + 1;
     end
 endmodule
+
 
 module digit_multiplexer (
     input [2:0] refreshCounter,
@@ -530,7 +539,7 @@ module digit_multiplexer (
     end
 endmodule
 
-module bin2bcd (
+module bin_to_bcd (
     input [7:0] binary,
     output reg [3:0] tens,
     output reg [3:0] ones
