@@ -1,4 +1,4 @@
-# FPGA Workout Timer & Calorie Calculator
+# FPGA Workout Timer
 
 This project was developed as the **final project for Logic Circuits Laboratory (Spring 2025)** by **Danial Seyedi** and **Pendar Rabiey**.
 
