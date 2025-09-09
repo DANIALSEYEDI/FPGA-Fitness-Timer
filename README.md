@@ -1,6 +1,6 @@
 # FPGA Workout Timer
 
-This project was developed as the **final project for Logic Circuits Laboratory (Spring 2025)** by **Danial Seyedi** and **Pendar Rabiey**.
+This project was developed as the **final project for Logic Circuits Laboratory (Spring 2025)**
 
 ## 📌 Project Overview
 The goal of this project is to design and implement a digital system on **FPGA** that calculates the required workout duration to burn a specific amount of calories and guides the user through timed workout sessions.
