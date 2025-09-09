@@ -16,12 +16,12 @@ The system consists of two main components:
    - Displays information on a **7-Segment Display**
    - Provides audio feedback via **Buzzer** at the end of each phase
 
-## Tools & Technologies
+##   Tools & Technologies
 - **Verilog HDL** for hardware description  
 - **FPGA platform**: AVA3S400 (or equivalent)  
 - Simulation & Synthesis tools: **Xilinx ISE / ISIM**  
 
-## Features
+##   Features
 - Calculates workout duration based on user inputs  
 - Schedules workout sessions and rest times  
 - Displays workout information on 7-segment display  
